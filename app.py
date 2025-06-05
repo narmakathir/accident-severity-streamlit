@@ -76,7 +76,7 @@ elif page == "Dataset":
         st.info("📁 Please upload the dataset to view its content.")
         
     # --- Visualizations Page ---
-elif page == "Visualizations":
+    elif page == "Visualizations":
     st.title("📈 Visualizations and Feature Importance")
 
     if uploaded_file is not None:
