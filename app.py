@@ -37,7 +37,7 @@ accident_related_features = [
 if page == "Home":
     st.title("🚧 Accident Severity Prediction App")
     st.markdown("""
-    This application is part of the Final Year Project titled **"AI-Driven Decision Support System for Accurate Traffic Accident Severity Prediction and Emergency Response Optimization"**.
+    This application is part of the Final Year Project titled **"Predicting Traffic Accident Severity Using Machine Learning "**.
 
     ### 📌 Overview
     Traffic accidents are a growing concern due to their impacts on human lives and infrastructure. This system uses **machine learning models** such as Random Forest, XGBoost, Logistic Regression, and ANN to predict accident severity (e.g., Minor, Serious, or Fatal).  
