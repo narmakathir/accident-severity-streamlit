@@ -74,9 +74,9 @@ elif page == "Dataset":
         """)
     else:
         st.info("📁 Please upload the dataset to view its content.")
-
-# --- Visualizations Page ---
-elif page == "Visualizations":
+        
+    # --- Visualizations Page ---
+    elif page == "Visualizations":
     st.title("📈 Visualizations and Feature Importance")
 
     if uploaded_file is not None:
@@ -109,7 +109,7 @@ elif page == "Visualizations":
         y = df[target_col]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        # Train models
+        # Train Models and Evaluate
         model_scores = {}
 
         def evaluate_model(model, name):
@@ -136,31 +136,7 @@ elif page == "Visualizations":
         ann_model.fit(X_train, y_train)
         evaluate_model(ann_model, "ANN")
 
-        # 📊 Model Comparison Bar Chart
-        st.subheader("📊 Model Comparison (Accuracy, Precision, Recall, F1-Score)")
-        metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-        x = np.arange(len(metrics))
-        width = 0.2
-
-        fig_mc, ax_mc = plt.subplots(figsize=(10, 6))
-        ax_mc.bar(x - width*1.5, model_scores['Random Forest'], width, label='RF')
-        ax_mc.bar(x - width*0.5, model_scores['XGBoost'], width, label='XGB')
-        ax_mc.bar(x + width*0.5, model_scores['Logistic Regression'], width, label='LR')
-        ax_mc.bar(x + width*1.5, model_scores['ANN'], width, label='ANN')
-        ax_mc.set_ylabel('Score (%)')
-        ax_mc.set_title('Model Comparison Metrics')
-        ax_mc.set_xticks(x)
-        ax_mc.set_xticklabels(metrics)
-        ax_mc.set_ylim(0, 100)
-        ax_mc.legend()
-        st.pyplot(fig_mc)
-
-        # 📋 Show model scores in table
-        st.subheader("📋 Model Performance Table")
-        score_df = pd.DataFrame(model_scores, index=metrics).T
-        st.dataframe(score_df.style.format("{:.2f}"))
-
-        # 📌 Feature Importance
+        # --- Feature Importance ---
         st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
         all_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
         accident_features = [f for f in accident_related_features if f in df.columns]
@@ -171,13 +147,36 @@ elif page == "Visualizations":
         ax1.set_title('Accident Feature Importances (Random Forest)')
         st.pyplot(fig1)
 
-        # 🔍 Correlation Heatmap
+        # --- Correlation Heatmap ---
         st.subheader("🔍 Correlation Heatmap")
         corr_matrix = df[accident_features + [target_col]].corr()
         fig2, ax2 = plt.subplots(figsize=(10, 8))
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
         st.pyplot(fig2)
 
+        # --- Model Comparison Bar Chart ---
+        st.subheader("📊 Model Comparison")
+        metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+        x = np.arange(len(metrics))
+        width = 0.2
+
+        fig3, ax3 = plt.subplots(figsize=(10, 6))
+        ax3.bar(x - width*1.5, model_scores['Random Forest'], width, label='RF')
+        ax3.bar(x - width*0.5, model_scores['XGBoost'], width, label='XGB')
+        ax3.bar(x + width*0.5, model_scores['Logistic Regression'], width, label='LR')
+        ax3.bar(x + width*1.5, model_scores['ANN'], width, label='ANN')
+        ax3.set_ylabel('Score (%)')
+        ax3.set_title('Model Comparison Metrics')
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(metrics)
+        ax3.set_ylim(0, 100)
+        ax3.legend()
+        st.pyplot(fig3)
+
+        # --- Model Comparison Table ---
+        st.subheader("📋 Model Score Table")
+        df_scores = pd.DataFrame(model_scores, index=metrics).T.round(2)
+        st.dataframe(df_scores.style.highlight_max(axis=0, color='lightgreen'))
+
     else:
         st.info("📁 Please upload the dataset to generate visualizations.")
-
