@@ -132,26 +132,26 @@ elif page == "Visualizations":
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
         st.pyplot(fig2)
 
-       # --- Display Scores ---
-       st.subheader("Model Comparison")
-       metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-       scores = pd.DataFrame(model_scores, index=metrics).T
-       st.dataframe(scores.style.format("{:.2f}"))
+        # --- Display Scores ---
+        st.subheader("Model Comparison")
+        metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+        scores = pd.DataFrame(model_scores, index=metrics).T
+        st.dataframe(scores.style.format("{:.2f}"))
 
-       # --- Visualize Comparison ---
-      fig, ax = plt.subplots(figsize=(10, 6))
-      x = np.arange(len(metrics))
-      width = 0.2
-      ax.bar(x - 1.5*width, model_scores['Random Forest'], width, label='RF')
-      ax.bar(x - 0.5*width, model_scores['XGBoost'], width, label='XGB')
-      ax.bar(x + 0.5*width, model_scores['Logistic Regression'], width, label='LR')
-      ax.bar(x + 1.5*width, model_scores['Artificial Neural Network'], width, label='ANN')
-      ax.set_ylabel('Score (%)')
-      ax.set_title('Model Comparison')
-      ax.set_xticks(x)
-      ax.set_xticklabels(metrics)
-      ax.legend()
-      st.pyplot(fig)
+        # --- Visualize Comparison ---
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(metrics))
+        width = 0.2
+        ax.bar(x - 1.5*width, model_scores['Random Forest'], width, label='RF')
+        ax.bar(x - 0.5*width, model_scores['XGBoost'], width, label='XGB')
+        ax.bar(x + 0.5*width, model_scores['Logistic Regression'], width, label='LR')
+        ax.bar(x + 1.5*width, model_scores['Artificial Neural Network'], width, label='ANN')
+        ax.set_ylabel('Score (%)')
+        ax.set_title('Model Comparison')
+        ax.set_xticks(x)
+        ax.set_xticklabels(metrics)
+        ax.legend()
+        st.pyplot(fig)
 
     else:
         st.info("📁 Please upload the dataset to generate visualizations.")
