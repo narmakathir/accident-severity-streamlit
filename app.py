@@ -132,6 +132,29 @@ elif page == "Visualizations":
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
         st.pyplot(fig2)
 
+        # --- Model Comparison Bar Chart ---
+        st.subheader("📊 Model Comparison")
+        metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+        x = np.arange(len(metrics))
+        width = 0.2
+
+        fig3, ax3 = plt.subplots(figsize=(10, 6))
+        ax3.bar(x - width*1.5, model_scores['Random Forest'], width, label='RF')
+        ax3.bar(x - width*0.5, model_scores['XGBoost'], width, label='XGB')
+        ax3.bar(x + width*0.5, model_scores['Logistic Regression'], width, label='LR')
+        ax3.bar(x + width*1.5, model_scores['ANN'], width, label='ANN')
+        ax3.set_ylabel('Score (%)')
+        ax3.set_title('Model Comparison Metrics')
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(metrics)
+        ax3.set_ylim(0, 100)
+        ax3.legend()
+        st.pyplot(fig3)
+
+        # --- Model Comparison Table ---
+        st.subheader("📋 Model Score Table")
+        df_scores = pd.DataFrame(model_scores, index=metrics).T.round(2)
+        st.dataframe(df_scores.style.highlight_max(axis=0, color='lightgreen'))
     
     else:
         st.info("📁 Please upload the dataset to generate visualizations.")
