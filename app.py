@@ -38,7 +38,7 @@ if page == "Home":
     st.title("🚧 Accident Severity Prediction App")
     st.markdown("""
     This application is part of the Final Year Project titled **"AI-Driven Decision Support System for Accurate Traffic Accident Severity Prediction and Emergency Response Optimization"**.
-    
+
     ### 📌 Overview
     Traffic accidents are a growing concern due to their impacts on human lives and infrastructure. This system uses **machine learning models** such as Random Forest, XGBoost, Logistic Regression, and ANN to predict accident severity (e.g., Minor, Serious, or Fatal).  
     
@@ -74,14 +74,14 @@ elif page == "Dataset":
         """)
     else:
         st.info("📁 Please upload the dataset to view its content.")
-        
+
 # --- Visualizations Page ---
 elif page == "Visualizations":
     st.title("📈 Visualizations and Feature Importance")
 
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-        
+
         # Drop irrelevant columns
         drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID',
                      'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
@@ -109,16 +109,31 @@ elif page == "Visualizations":
         y = df[target_col]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        # Train RF
-        rf_model = RandomForestClassifier(random_state=42)
-        rf_model.fit(X_train, y_train)
+        # --- Train and Score All Models ---
+        models = {
+            'Random Forest': RandomForestClassifier(random_state=42),
+            'XGBoost': xgb.XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42),
+            'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+            'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, random_state=42)
+        }
 
-        # Feature Importance
+        model_scores = {}
+
+        for name, model in models.items():
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            model_scores[name] = [
+                accuracy_score(y_test, y_pred),
+                precision_score(y_test, y_pred, average='weighted', zero_division=0),
+                recall_score(y_test, y_pred, average='weighted', zero_division=0),
+                f1_score(y_test, y_pred, average='weighted', zero_division=0)
+            ]
+
+        # Feature Importance - Random Forest
         st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
-        all_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
+        all_importances = pd.Series(models['Random Forest'].feature_importances_, index=X.columns)
         accident_features = [f for f in accident_related_features if f in df.columns]
         imp_filtered = all_importances[accident_features].sort_values(ascending=False)
-
 
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         sns.barplot(x=imp_filtered, y=imp_filtered.index, ax=ax1)
@@ -132,21 +147,21 @@ elif page == "Visualizations":
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
         st.pyplot(fig2)
 
-        # --- Display Scores ---
-        st.subheader("Model Comparison")
+        # Display Scores
+        st.subheader("📊 Model Comparison")
         metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
         scores = pd.DataFrame(model_scores, index=metrics).T
         st.dataframe(scores.style.format("{:.2f}"))
 
-        # --- Visualize Comparison ---
+        # Bar Chart for Model Comparison
         fig, ax = plt.subplots(figsize=(10, 6))
         x = np.arange(len(metrics))
         width = 0.2
-        ax.bar(x - 1.5*width, model_scores['Random Forest'], width, label='RF')
-        ax.bar(x - 0.5*width, model_scores['XGBoost'], width, label='XGB')
-        ax.bar(x + 0.5*width, model_scores['Logistic Regression'], width, label='LR')
-        ax.bar(x + 1.5*width, model_scores['Artificial Neural Network'], width, label='ANN')
-        ax.set_ylabel('Score (%)')
+        ax.bar(x - 1.5*width, scores.iloc[0], width, label='RF')
+        ax.bar(x - 0.5*width, scores.iloc[1], width, label='XGB')
+        ax.bar(x + 0.5*width, scores.iloc[2], width, label='LR')
+        ax.bar(x + 1.5*width, scores.iloc[3], width, label='ANN')
+        ax.set_ylabel('Score')
         ax.set_title('Model Comparison')
         ax.set_xticks(x)
         ax.set_xticklabels(metrics)
