@@ -114,10 +114,10 @@ elif page == "Visualizations":
         rf_model.fit(X_train, y_train)
 
         # Feature Importance
-st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
-all_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
-accident_features = [f for f in accident_related_features if f in df.columns]
-imp_filtered = all_importances[accident_features].sort_values(ascending=False)
+        st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
+        all_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
+        accident_features = [f for f in accident_related_features if f in df.columns]
+        imp_filtered = all_importances[accident_features].sort_values(ascending=False)
 
 
         fig1, ax1 = plt.subplots(figsize=(10, 6))
