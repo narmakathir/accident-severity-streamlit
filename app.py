@@ -4,12 +4,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import gdown
+import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
 import warnings
@@ -19,10 +21,14 @@ warnings.filterwarnings('ignore')
 st.title("Accident Severity Prediction App")
 st.write("Using ML Models: Random Forest, XGBoost, Logistic Regression, ANN")
 
-# --- Load Dataset from Google Drive ---
+# --- Download & Load Dataset from Google Drive ---
 file_id = '1sVplp_5lFb3AMG5vWRqIltwNazLyM8vH'
-url = f"https://drive.google.com/uc?id={file_id}"
-df = pd.read_csv(url)
+output = 'data.csv'
+url = f'https://drive.google.com/uc?id={file_id}'
+if not os.path.exists(output):
+    gdown.download(url, output, quiet=False)
+
+df = pd.read_csv(output)
 target_col = 'Injury Severity'
 
 # --- Drop Irrelevant Columns ---
@@ -116,3 +122,4 @@ if features_in_df:
     fig2, ax2 = plt.subplots(figsize=(10, 8))
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
     st.pyplot(fig2)
+
