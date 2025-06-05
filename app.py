@@ -22,10 +22,13 @@ st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Dataset", "Visualizations"])
 
-# --- Load Fixed Dataset ---
+# --- Load CSV from Google Drive ---
 @st.cache_data
 def load_data():
-    return pd.read_csv("Crash_Reporting_-_Drivers_Data.csv")
+    file_id = "1A2B3C4D5E6F7G8H9I"  # <-- Replace this with your actual Google Drive file ID
+    url = f"https://drive.google.com/uc?id={file_id}"
+    df = pd.read_csv(url)
+    return df
 
 df = load_data()
 
@@ -57,14 +60,18 @@ if page == "Home":
 # --- Dataset Page ---
 elif page == "Dataset":
     st.title("🗃️ Dataset Overview & Details")
-
     st.subheader("🔎 Dataset Preview")
     st.dataframe(df.head(), use_container_width=True)
 
     st.subheader("🧾 Dataset Info")
     st.text(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
     st.text("Missing Values:")
-    st.text(df.isnull().sum()[df.isnull().sum() > 0])
+    missing = df.isnull().sum()
+    missing = missing[missing > 0]
+    if len(missing) > 0:
+        st.text(missing)
+    else:
+        st.text("No missing values found.")
 
     st.subheader("📊 Summary Statistics")
     st.dataframe(df.describe(include='all'), use_container_width=True)
@@ -83,28 +90,28 @@ elif page == "Visualizations":
     # Drop irrelevant columns
     drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID',
                  'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
-    df.drop(columns=drop_cols, inplace=True, errors='ignore')
+    df_viz = df.drop(columns=drop_cols, inplace=False, errors='ignore')
 
     # Handle missing values
-    df.fillna(df.median(numeric_only=True), inplace=True)
-    df.fillna(df.mode().iloc[0], inplace=True)
+    df_viz.fillna(df_viz.median(numeric_only=True), inplace=True)
+    df_viz.fillna(df_viz.mode().iloc[0], inplace=True)
 
     # Encode categoricals
-    for col in df.select_dtypes(include='object').columns:
-        df[col] = LabelEncoder().fit_transform(df[col])
+    for col in df_viz.select_dtypes(include='object').columns:
+        df_viz[col] = LabelEncoder().fit_transform(df_viz[col])
 
     # Normalize
     target_col = 'Injury Severity'
-    if target_col not in df.columns:
+    if target_col not in df_viz.columns:
         st.error("❌ 'Injury Severity' column not found.")
         st.stop()
 
-    numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    df[numeric_cols] = StandardScaler().fit_transform(df[numeric_cols])
+    numeric_cols = df_viz.select_dtypes(include='number').columns.difference([target_col])
+    df_viz[numeric_cols] = StandardScaler().fit_transform(df_viz[numeric_cols])
 
     # Train/Test split
-    X = df.drop(target_col, axis=1)
-    y = df[target_col]
+    X = df_viz.drop(target_col, axis=1)
+    y = df_viz[target_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # --- Train and Score All Models ---
@@ -117,20 +124,21 @@ elif page == "Visualizations":
 
     model_scores = {}
 
-    for name, model in models.items():
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        model_scores[name] = [
-            accuracy_score(y_test, y_pred),
-            precision_score(y_test, y_pred, average='weighted', zero_division=0),
-            recall_score(y_test, y_pred, average='weighted', zero_division=0),
-            f1_score(y_test, y_pred, average='weighted', zero_division=0)
-        ]
+    with st.spinner("Training models..."):
+        for name, model in models.items():
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            model_scores[name] = [
+                accuracy_score(y_test, y_pred),
+                precision_score(y_test, y_pred, average='weighted', zero_division=0),
+                recall_score(y_test, y_pred, average='weighted', zero_division=0),
+                f1_score(y_test, y_pred, average='weighted', zero_division=0)
+            ]
 
     # Feature Importance - Random Forest
     st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
     all_importances = pd.Series(models['Random Forest'].feature_importances_, index=X.columns)
-    accident_features = [f for f in accident_related_features if f in df.columns]
+    accident_features = [f for f in accident_related_features if f in df_viz.columns]
     imp_filtered = all_importances[accident_features].sort_values(ascending=False)
 
     fig1, ax1 = plt.subplots(figsize=(10, 6))
@@ -140,7 +148,7 @@ elif page == "Visualizations":
 
     # Correlation Heatmap
     st.subheader("🔍 Correlation Heatmap")
-    corr_matrix = df[accident_features + [target_col]].corr()
+    corr_matrix = df_viz[accident_features + [target_col]].corr()
     fig2, ax2 = plt.subplots(figsize=(10, 8))
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
     st.pyplot(fig2)
@@ -155,9 +163,9 @@ elif page == "Visualizations":
     fig, ax = plt.subplots(figsize=(10, 6))
     x = np.arange(len(metrics))
     width = 0.2
-    ax.bar(x - 1.5*width, scores.iloc[0], width, label='RF')
-    ax.bar(x - 0.5*width, scores.iloc[1], width, label='XGB')
-    ax.bar(x + 0.5*width, scores.iloc[2], width, label='LR')
+    ax.bar(x - 1.5*width, scores.iloc[0], width, label='Random Forest')
+    ax.bar(x - 0.5*width, scores.iloc[1], width, label='XGBoost')
+    ax.bar(x + 0.5*width, scores.iloc[2], width, label='Logistic Regression')
     ax.bar(x + 1.5*width, scores.iloc[3], width, label='ANN')
     ax.set_ylabel('Score')
     ax.set_title('Model Comparison')
