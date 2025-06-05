@@ -76,12 +76,12 @@ elif page == "Dataset":
         st.info("📁 Please upload the dataset to view its content.")
         
     # --- Visualizations Page ---
-    elif page == "Visualizations":
+elif page == "Visualizations":
     st.title("📈 Visualizations and Feature Importance")
 
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-
+        
         # Drop irrelevant columns
         drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID',
                      'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
@@ -109,74 +109,29 @@ elif page == "Dataset":
         y = df[target_col]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        # Train Models and Evaluate
-        model_scores = {}
-
-        def evaluate_model(model, name):
-            y_pred = model.predict(X_test)
-            acc = accuracy_score(y_test, y_pred) * 100
-            prec = precision_score(y_test, y_pred, average='weighted') * 100
-            rec = recall_score(y_test, y_pred, average='weighted') * 100
-            f1 = f1_score(y_test, y_pred, average='weighted') * 100
-            model_scores[name] = [acc, prec, rec, f1]
-
+        # Train RF
         rf_model = RandomForestClassifier(random_state=42)
         rf_model.fit(X_train, y_train)
-        evaluate_model(rf_model, "Random Forest")
 
-        xgb_model = xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss')
-        xgb_model.fit(X_train, y_train)
-        evaluate_model(xgb_model, "XGBoost")
-
-        log_model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
-        log_model.fit(X_train, y_train)
-        evaluate_model(log_model, "Logistic Regression")
-
-        ann_model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
-        ann_model.fit(X_train, y_train)
-        evaluate_model(ann_model, "ANN")
-
-        # --- Feature Importance ---
+        # Feature Importance
         st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
         all_importances = pd.Series(rf_model.feature_importances_, index=X.columns)
         accident_features = [f for f in accident_related_features if f in df.columns]
         imp_filtered = all_importances[accident_features].sort_values(ascending=False)
+
 
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         sns.barplot(x=imp_filtered, y=imp_filtered.index, ax=ax1)
         ax1.set_title('Accident Feature Importances (Random Forest)')
         st.pyplot(fig1)
 
-        # --- Correlation Heatmap ---
+        # Correlation Heatmap
         st.subheader("🔍 Correlation Heatmap")
         corr_matrix = df[accident_features + [target_col]].corr()
         fig2, ax2 = plt.subplots(figsize=(10, 8))
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
         st.pyplot(fig2)
 
-        # --- Model Comparison Bar Chart ---
-        st.subheader("📊 Model Comparison")
-        metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-        x = np.arange(len(metrics))
-        width = 0.2
-
-        fig3, ax3 = plt.subplots(figsize=(10, 6))
-        ax3.bar(x - width*1.5, model_scores['Random Forest'], width, label='RF')
-        ax3.bar(x - width*0.5, model_scores['XGBoost'], width, label='XGB')
-        ax3.bar(x + width*0.5, model_scores['Logistic Regression'], width, label='LR')
-        ax3.bar(x + width*1.5, model_scores['ANN'], width, label='ANN')
-        ax3.set_ylabel('Score (%)')
-        ax3.set_title('Model Comparison Metrics')
-        ax3.set_xticks(x)
-        ax3.set_xticklabels(metrics)
-        ax3.set_ylim(0, 100)
-        ax3.legend()
-        st.pyplot(fig3)
-
-        # --- Model Comparison Table ---
-        st.subheader("📋 Model Score Table")
-        df_scores = pd.DataFrame(model_scores, index=metrics).T.round(2)
-        st.dataframe(df_scores.style.highlight_max(axis=0, color='lightgreen'))
-
+    
     else:
         st.info("📁 Please upload the dataset to generate visualizations.")
