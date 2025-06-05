@@ -88,6 +88,19 @@ if uploaded_file is not None:
         ann_model.fit(X_train, y_train)
         evaluate_model(ann_model, "Artificial Neural Network")
 
+      # --- Feature Importance (Accident-Only) ---
+        st.subheader("📌 Feature Importances (Accident-Related - Random Forest)")
+        importances_all = pd.Series(rf_model.feature_importances_, index=X.columns)
+        accident_features_in_df = [f for f in accident_features if f in X.columns]
+        filtered_importances = importances_all[accident_features_in_df].sort_values(ascending=False)
+
+        fig3, ax3 = plt.subplots(figsize=(10, 6))
+        sns.barplot(x=filtered_importances, y=filtered_importances.index, ax=ax3)
+        ax3.set_title('Feature Importances (Accident-Related - Random Forest)')
+        ax3.set_xlabel('Importance')
+        ax3.set_ylabel('Feature')
+        st.pyplot(fig3)
+
     # --- Display Scores ---
     st.subheader("📊 Model Comparison")
     metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
