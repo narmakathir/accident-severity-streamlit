@@ -1,5 +1,3 @@
-
-
 # --- Import Libraries ---
 import streamlit as st
 import pandas as pd
@@ -16,31 +14,37 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import xgboost as xgb
+import warnings
+warnings.filterwarnings("ignore")
 
-# --- Config ---
+# --- Page Configuration ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Predictions", "Reports", "User Manual", "Admin"])
 
-# --- Global Config ---
+# --- Constants ---
 DEFAULT_FILE = "Crash_Reporting.csv"
-GDRIVE_URL = "https://drive.google.com/uc?id=1aIzqBWtGg5K20E9xC2FQKfe7r0TSvcV6"
+GDRIVE_URL = "https://drive.google.com/uc?id=1sVplp_5lFb3AMG5vWRqIltwNazLyM8vH"
 
+# --- Load Default Dataset ---
 @st.cache_data
 def load_default_data():
     if not os.path.exists(DEFAULT_FILE):
         gdown.download(GDRIVE_URL, DEFAULT_FILE, quiet=False)
     return pd.read_csv(DEFAULT_FILE)
 
+# --- Preprocessing Function ---
 def preprocess_data(df, target_col='Injury Severity'):
-    drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID', 'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
+    drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID', 
+                 'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
     df.drop(columns=drop_cols, inplace=True, errors='ignore')
+
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
     for col in df.select_dtypes(include='object').columns:
         df[col] = LabelEncoder().fit_transform(df[col])
-    
+
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
     df[numeric_cols] = StandardScaler().fit_transform(df[numeric_cols])
 
@@ -48,7 +52,7 @@ def preprocess_data(df, target_col='Injury Severity'):
     y = df[target_col]
     return train_test_split(X, y, test_size=0.2, random_state=42), X.columns
 
-# --- Load Data ---
+# --- Load Dataset ---
 df = load_default_data()
 
 # --- Home Page ---
@@ -58,14 +62,17 @@ if page == "Home":
     This application is part of the Final Year Project titled **"Predicting Traffic Accident Severity Using Machine Learning"**.
 
     ### 📌 Overview
-    This project aims to use **machine learning algorithms** such as Random Forest, XGBoost, Logistic Regression, and ANN
-    to classify the severity of traffic accidents (Minor, Serious, or Fatal) using contributory factors.
+    This system predicts the severity of traffic accidents using machine learning algorithms such as:
+    - Random Forest
+    - XGBoost
+    - Logistic Regression
+    - Artificial Neural Network (ANN)
 
-    📊 Key Features:
-    - Data exploration and preprocessing
-    - ML-based prediction interface
-    - Model evaluation and comparison
-    - Feature importance visualization
+    📊 Based on:
+    - Road conditions
+    - Driver behavior
+    - Weather
+    - Vehicle factors
 
     📚 Dataset Source: [Crash Reporting - Drivers Data](https://catalog.data.gov/dataset/crash-reporting-drivers-data)
     """)
@@ -74,13 +81,13 @@ if page == "Home":
 elif page == "Data Analysis":
     st.title("📊 Data Analysis & Model Performance")
 
-    st.subheader("🔍 Data Overview")
+    st.subheader("🔍 Dataset Preview")
     st.dataframe(df.head(), use_container_width=True)
 
-    st.text(f"Dataset Shape: {df.shape}")
+    st.subheader("📋 Summary")
+    st.text(f"Shape: {df.shape}")
     st.text(f"Missing Values:\n{df.isnull().sum()[df.isnull().sum() > 0]}")
 
-    st.subheader("📌 Model Training & Evaluation")
     try:
         (X_train, X_test, y_train, y_test), feature_cols = preprocess_data(df)
         models = {
@@ -101,9 +108,11 @@ elif page == "Data Analysis":
                 f1_score(y_test, preds, average='weighted', zero_division=0)
             ]
 
-        st.dataframe(pd.DataFrame(scores, index=["Accuracy", "Precision", "Recall", "F1-Score"]).T.style.format("{:.2f}"))
+        st.subheader("📈 Model Comparison")
+        score_df = pd.DataFrame(scores, index=["Accuracy", "Precision", "Recall", "F1-Score"]).T
+        st.dataframe(score_df.style.format("{:.2f}"))
 
-        st.subheader("📈 Feature Importance (Random Forest)")
+        st.subheader("🔎 Feature Importance (Random Forest)")
         importances = models['Random Forest'].feature_importances_
         imp_df = pd.Series(importances, index=feature_cols).sort_values(ascending=False)
 
@@ -111,32 +120,30 @@ elif page == "Data Analysis":
         sns.barplot(x=imp_df.values, y=imp_df.index, ax=ax1)
         ax1.set_title("Feature Importance")
         st.pyplot(fig1)
+
     except Exception as e:
         st.error(f"Error processing data: {e}")
 
 # --- Predictions Page ---
 elif page == "Predictions":
     st.title("📍 Predict Accident Severity")
+    st.markdown("Fill in the details below to predict the severity of an accident:")
 
-    input_df = df.drop('Injury Severity', axis=1).head(1).copy()
-
-    st.markdown("Please fill in the accident conditions:")
-    user_input = {}
-    for col in input_df.columns:
+    sample_input = df.drop(columns=['Injury Severity']).iloc[0].copy()
+    user_data = {}
+    for col in sample_input.index:
         if df[col].dtype == 'object':
-            user_input[col] = st.selectbox(col, df[col].unique())
+            user_data[col] = st.selectbox(col, sorted(df[col].dropna().unique()))
         else:
-            user_input[col] = st.number_input(col, value=float(df[col].median()), format="%.2f")
+            user_data[col] = st.number_input(col, value=float(df[col].median()), format="%.2f")
 
-    input_df = pd.DataFrame([user_input])
+    input_df = pd.DataFrame([user_data])
     encoded_df = input_df.copy()
-
     for col in encoded_df.select_dtypes(include='object').columns:
         encoded_df[col] = LabelEncoder().fit(df[col]).transform(encoded_df[col])
 
-    for col in encoded_df.columns:
-        if df[col].dtype in ['int64', 'float64']:
-            encoded_df[col] = StandardScaler().fit(df[[col]]).transform(encoded_df[[col]])
+    for col in encoded_df.select_dtypes(include='number').columns:
+        encoded_df[col] = StandardScaler().fit(df[[col]]).transform(encoded_df[[col]])
 
     model = RandomForestClassifier(random_state=42)
     (X_train, X_test, y_train, y_test), _ = preprocess_data(df)
@@ -146,39 +153,41 @@ elif page == "Predictions":
 
 # --- Reports Page ---
 elif page == "Reports":
-    st.title("📝 Data Analysis Report")
+    st.title("📄 Reports")
     st.markdown("""
-    ### Summary
-    - Dataset used: Crash Reporting Dataset (Gov data)
-    - Preprocessing: Imputation, encoding, normalization
-    - Models used: RF, XGBoost, LR, ANN
-    - Best performance: Generally Random Forest / XGBoost
-    - Important Features: Weather, Driver Behavior, Surface Condition, Speed Limit
+    ### 📊 Data Analysis Summary
 
-    📌 Report generation for download is not included in FYP1 scope.
+    - **Models Used**: Random Forest, XGBoost, Logistic Regression, ANN
+    - **Features Considered**: Driver behavior, surface condition, weather, vehicle type, etc.
+    - **Best Performing Model**: Usually Random Forest or XGBoost
+    - **Key Risk Indicators**: High speed, adverse weather, certain vehicle types
+
+    📌 *Note: Report download/export will be available in FYP2 if needed.*
     """)
 
 # --- User Manual Page ---
 elif page == "User Manual":
     st.title("📘 User Manual")
     st.markdown("""
-    ### Instructions
-    - **Home**: Overview and purpose of the app
-    - **Data Analysis**: Visual summary + model training
-    - **Predictions**: Input features to get predicted severity
-    - **Reports**: Summarized results and key observations
-    - **Admin Page**: Upload a new dataset (overrides default)
+    ### App Navigation Guide
 
-    ⚠️ Default dataset: Crash_Reporting.csv (automatically downloaded)
+    - **Home**: Overview of project and goals.
+    - **Data Analysis**: View dataset, train models, see performance and feature importance.
+    - **Predictions**: Input real-world accident scenario to get severity prediction.
+    - **Reports**: Summary of analysis and key findings.
+    - **Admin**: Upload your own dataset for analysis.
+    
+    📌 *Ensure your dataset includes an 'Injury Severity' column.*
     """)
 
 # --- Admin Page ---
 elif page == "Admin":
-    st.title("⚙️ Admin Panel - Upload Dataset")
-    uploaded_file = st.file_uploader("📁 Upload new dataset (CSV)", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
+    st.title("⚙️ Admin Panel")
+    uploaded = st.file_uploader("📁 Upload New Dataset (CSV)", type=['csv'])
+    if uploaded:
+        df = pd.read_csv(uploaded)
         df.to_csv(DEFAULT_FILE, index=False)
-        st.success("✅ Dataset replaced successfully.")
+        st.success("✅ Dataset replaced. Reload the app to see changes.")
     else:
-        st.info("Using default dataset from Google Drive.")
+        st.info("Default dataset in use from Google Drive.")
+
