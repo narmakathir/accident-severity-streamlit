@@ -1,71 +1,55 @@
-# --- Import Libraries ---
+# === Import Libraries ===
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.neural_network import MLPClassifier
-import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
-# --- Page Config ---
-st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+import xgboost as xgb
 
-# --- Accident Features ---
-accident_related_features = [
-    'Driver At Fault', 'Circumstance', 'Driver Distracted By', 'Collision Type',
-    'Vehicle Movement', 'Vehicle Going Dir', 'Vehicle First Impact Location',
-    'Vehicle Damage Extent', 'Vehicle Body Type', 'Traffic Control',
-    'Weather', 'Surface Condition', 'Light', 'Speed Limit', 'Driver Substance Abuse'
-]
+# === Streamlit Page Config ===
+st.set_page_config(page_title="Accident Severity Prediction App", layout="wide")
 
-# --- Load and Cache Dataset from Google Drive ---
+# === Load & Preprocess Dataset ===
 @st.cache_data
-def load_and_preprocess_data():
-    # Load from Google Drive link
-    url = 'https://drive.google.com/uc?id=1sVplp_5lFb3AMG5vWRqIltwNazLyM8vH'
+def load_data():
+    url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
     df = pd.read_csv(url)
 
-    # Drop irrelevant columns
-    drop_cols = ['Report Number', 'Local Case Number', 'Person ID', 'Vehicle ID',
-                 'Latitude', 'Longitude', 'Location', 'Driverless Vehicle', 'Parked Vehicle']
-    df.drop(columns=drop_cols, inplace=True, errors='ignore')
-
-    # Handle missing values
+    df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    # Encode categoricals
+    label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        df[col] = LabelEncoder().fit_transform(df[col])
+        if col != 'Location':
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+            label_encoders[col] = le
 
-    # Normalize
     target_col = 'Injury Severity'
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    df[numeric_cols] = StandardScaler().fit_transform(df[numeric_cols])
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
-    # Train/test split
-    X = df.drop(target_col, axis=1)
-    y = df[target_col]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    return df, label_encoders
 
-    return df, X_train, X_test, y_train, y_test
+df, label_encoders = load_data()
+target_col = 'Injury Severity'
 
-# Load cached dataset
-df, X_train, X_test, y_train, y_test = load_and_preprocess_data()
-
-# --- Sidebar Navigation ---
+# === Sidebar Navigation ===
 st.sidebar.title("🔍 Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Dataset", "Visualizations"])
 
-# --- Home Page ---
+# === Home Page ===
 if page == "Home":
     st.title("🚧 Accident Severity Prediction App")
     st.markdown("""
@@ -79,10 +63,10 @@ if page == "Home":
     - Assist emergency responders in resource allocation.
     - Identify key risk patterns to improve road safety.
 
-    📚 Dataset Source: [Crash Reporting - Drivers Data](https://catalog.data.gov/dataset/crash-reporting-drivers-data)
+    📚 Dataset Source: [GitHub - NarmaKathir](https://github.com/narmakathir/accident-severity-streamlit)
     """)
 
-# --- Dataset Page ---
+# === Dataset Page ===
 elif page == "Dataset":
     st.title("🗃️ Dataset Overview & Details")
 
@@ -99,25 +83,34 @@ elif page == "Dataset":
 
     st.subheader("📌 Notes")
     st.markdown("""
-    - The dataset includes both categorical and numerical variables.
+    - Columns like `Location` were retained for hotspot plotting.
     - Target column for prediction: **Injury Severity**
-    - Common preprocessing steps: missing value imputation, encoding, normalization.
+    - Preprocessing includes: duplicate removal, missing value imputation, encoding, normalization.
     """)
 
-# --- Visualizations Page ---
+# === Visualizations Page ===
 elif page == "Visualizations":
-    st.title("📈 Visualizations and Feature Importance")
+    st.title("📈 Visualizations, Model Performance & Insights")
 
-    target_col = 'Injury Severity'
-    X = df.drop(target_col, axis=1)
+    # Features to visualize
+    eda_cols = [
+        'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
+        'Traffic Control', 'Weather', 'Surface Condition', 'Light',
+        'Speed Limit', 'Driver Substance Abuse'
+    ]
+    eda_in_df = [col for col in eda_cols if col in df.columns]
+
+    # Train-test split
+    X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Train models
+    # === Model Training ===
     models = {
-        'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgb.XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
-        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, random_state=42)
+        "Logistic Regression": LogisticRegression(max_iter=1000),
+        "Random Forest": RandomForestClassifier(random_state=42),
+        "XGBoost": xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
+        "Artificial Neural Network": MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
 
     model_scores = {}
@@ -125,46 +118,61 @@ elif page == "Visualizations":
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
         model_scores[name] = [
-            accuracy_score(y_test, y_pred),
-            precision_score(y_test, y_pred, average='weighted', zero_division=0),
-            recall_score(y_test, y_pred, average='weighted', zero_division=0),
-            f1_score(y_test, y_pred, average='weighted', zero_division=0)
+            accuracy_score(y_test, y_pred)*100,
+            precision_score(y_test, y_pred, average='weighted')*100,
+            recall_score(y_test, y_pred, average='weighted')*100,
+            f1_score(y_test, y_pred, average='weighted')*100
         ]
 
-    # Feature Importance - Random Forest
-    st.subheader("📌 Feature Importance (Accident-Related - Random Forest)")
-    all_importances = pd.Series(models['Random Forest'].feature_importances_, index=X.columns)
-    accident_features = [f for f in accident_related_features if f in df.columns]
-    imp_filtered = all_importances[accident_features].sort_values(ascending=False)
-
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=imp_filtered.values, y=imp_filtered.index, ax=ax1)
-    ax1.set_title('Accident Feature Importances (Random Forest)')
+    # === Distribution Plot ===
+    st.subheader("🔹 Distribution of Injury Severity")
+    fig1, ax1 = plt.subplots()
+    sns.countplot(data=df, x=target_col, ax=ax1)
+    ax1.set_title("Distribution of Injury Severity")
     st.pyplot(fig1)
 
-    # Correlation Heatmap
-    st.subheader("🔍 Correlation Heatmap")
-    corr_matrix = df[accident_features + [target_col]].corr()
+    # === Heatmap ===
+    st.subheader("🔹 Correlation Heatmap (Accident Features)")
     fig2, ax2 = plt.subplots(figsize=(10, 8))
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
+    sns.heatmap(df[eda_in_df + [target_col]].corr(), cmap='coolwarm', ax=ax2)
     st.pyplot(fig2)
 
-    # Display Scores
-    st.subheader("📊 Model Comparison Table")
-    metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-    scores = pd.DataFrame(model_scores, index=metrics).T
-    st.dataframe(scores.style.format("{:.2f}"))
+    # === Hotspot Plot ===
+    st.subheader("🔹 Accident Hotspot Map (Density)")
+    df[['Latitude', 'Longitude']] = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)').astype(float)
+    fig3, ax3 = plt.subplots(figsize=(10, 6))
+    sns.kdeplot(x=df['Longitude'], y=df['Latitude'], cmap='Reds', fill=True, alpha=0.6, ax=ax3)
+    ax3.set_title("Accident Hotspot Heatmap")
+    ax3.set_xlabel("Longitude")
+    ax3.set_ylabel("Latitude")
+    st.pyplot(fig3)
 
-    # Bar Chart for Model Comparison
-    st.subheader("📊 Model Comparison Chart")
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # === Model Comparison Table ===
+    st.subheader("🔹 Model Performance Table")
+    metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+    scores_df = pd.DataFrame(model_scores, index=metrics).T
+    st.dataframe(scores_df.style.format("{:.2f}"))
+
+    # === Model Comparison Chart ===
+    st.subheader("🔹 Model Comparison Bar Chart")
+    fig4, ax4 = plt.subplots(figsize=(10, 6))
     x = np.arange(len(metrics))
     width = 0.2
-    for i, (model_name, values) in enumerate(model_scores.items()):
-        ax.bar(x + width*i - 1.5*width, values, width, label=model_name[:3])
-    ax.set_ylabel('Score')
-    ax.set_title('Model Performance Comparison')
-    ax.set_xticks(x)
-    ax.set_xticklabels(metrics)
-    ax.legend()
-    st.pyplot(fig)
+    for i, (model_name, scores) in enumerate(model_scores.items()):
+        ax4.bar(x + width*i - 1.5*width, scores, width, label=model_name[:3])
+    ax4.set_title("Model Performance Comparison")
+    ax4.set_xticks(x)
+    ax4.set_xticklabels(metrics)
+    ax4.set_ylabel("Score (%)")
+    ax4.legend()
+    st.pyplot(fig4)
+
+    # === Feature Importance ===
+    st.subheader("🔹 Feature Importances (Random Forest)")
+    rf_model = models["Random Forest"]
+    importances = pd.Series(rf_model.feature_importances_, index=X.columns)
+    filtered = importances[eda_in_df].sort_values(ascending=False)
+    fig5, ax5 = plt.subplots(figsize=(10, 6))
+    sns.barplot(x=filtered.values, y=filtered.index, ax=ax5)
+    ax5.set_title("Top Accident-Related Feature Importances (RF)")
+    st.pyplot(fig5)
