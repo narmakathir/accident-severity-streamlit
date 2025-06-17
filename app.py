@@ -159,16 +159,6 @@ elif page == "Data Analysis":
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
-# --- Predictions --- 
-elif page == "Predictions":
-    st.title("Make Predictions from Dataset")
-    selected_model = st.selectbox("Choose Model", list(models.keys()))
-    model = models[selected_model]
-    y_pred = model.predict(X_test)
-    report = classification_report(y_test, y_pred, output_dict=True)
-    st.write(f"### {selected_model} - Classification Report")
-    st.dataframe(pd.DataFrame(report).transpose())    
-
 # --- Custom Prediction Interface --- 
 elif page == "Custom Prediction Interface":
     st.title("Custom Prediction Interface")
@@ -192,23 +182,6 @@ elif page == "Custom Prediction Interface":
     severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0] if 'Injury Severity' in label_encoders else prediction
     st.success(f"**Predicted Severity:** {severity_label}")
     st.info(f"**Confidence:** {confidence:.2f}%")
-
-# --- Visualizations --- 
-elif page == "Visualizations":
-    st.title("Model Visualizations")
-    model_name = st.selectbox("Select Model", list(models.keys()))
-    selected_model = models[model_name]
-    y_pred = selected_model.predict(X_test)
-
-    cm = confusion_matrix(y_test, y_pred)
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    ax.set_title("Confusion Matrix")
-    st.pyplot(fig)
-
-    report = classification_report(y_test, y_pred, output_dict=True)
-    st.write("Classification Report")
-    st.dataframe(pd.DataFrame(report).transpose())    
 
 # --- Reports --- 
 elif page == "Reports":
