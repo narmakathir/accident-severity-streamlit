@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
@@ -36,15 +36,12 @@ def load_data():
 
     target_col = 'Injury Severity'
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
     X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, 
-                                                        test_size=0.2, 
-                                                        random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
 
@@ -56,7 +53,7 @@ def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgboost.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
+        'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
     trained_models = {}
@@ -85,83 +82,80 @@ if page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.write("""
     **Project Overview:**  
-    Traffic accidents are a major problem causing injuries, fatalities, and damage to property.  
-    Machine-learning techniques can help to predict accident severity and enable authorities to respond promptly and efficiently.  
+    Traffic accidents are a major problem worldwide, causing numerous fatalities, damage to property, and productivity losses.  
+    Predicting accident severity based on contributors such as road conditions, vehicle types, and driver behavior can help authorities respond faster and implement preventive measures.  
+    This project uses Machine Learning techniques to analyze past accidents and predict their severity, thereby helping to improve road safety.
     """)
 
     st.write("### Dataset Preview")
-    st.dataframe(df.copy())    
+    st.dataframe(df.copy().head(10))
 
     st.write("### Dataset Summary")
-    st.write(f"- Number of rows: {len(df)}")
-    st.write(f"- Number of columns: {len(df.columns)}")
-    st.write("- Types of variables:")
-    st.write(df.dtypes)
+    st.write(f"- Number of Rows: {len(df)}")
+    st.write(f"- Number of Columns: {len(df.columns)}")
+    st.write("- Columns:")
+    for col in df.columns:
+        st.write(f"  - {col}")
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
     st.title("Data Analysis")
-    st.write("### Injury Severity Distribution")
+    st.write("### Distribution of Injury Severity")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='Blues')
-    ax.set_title('Distribution of Injury Severity')
+    sns.countplot(x='Injury Severity', data=df, ax=ax)
+    ax.set_title("Count of Injury Severity")
     st.pyplot(fig)
 
-    st.write("### Hotspot Heatmap")
-    if 'Location' in df.columns:
-        coords = df['Location'].str.extract(r'\((.*),(.*)\)')
-        coords.columns = ['Latitude', 'Longitude']
-
-        coords = coords.astype(float).dropna()
-        st.map(coords)
-    else:
-        st.error("Location data not available.")
-        
     st.write("### Correlation Heatmap")
     fig, ax = plt.subplots()
-    corr_matrix = df.select_dtypes(include='number').corr()
-    sns.heatmap(corr_matrix, cmap='Blues', annot=False, ax=ax)
-    ax.set_title("Correlation Heatmap")
+    corr = df.corr(numeric_only=True)
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
     st.pyplot(fig)
 
-    st.write("### Model Performance")
-    performance_df = pd.DataFrame(model_scores, index=["Accuracy", "Precision", "Recall", "F1-Score"]).T
-    st.dataframe(performance_df.style.background_gradient(cmap='YlGn'))    
+    st.write("### Hotspot Map")
+    if 'Location' in df.columns:
+        df_location = df.copy()
+        coords = df_location['Location'].str.split(',', expand=True)
+        df_location['latitude'] = coords[0].apply(float)
+        df_location['longitude'] = coords[1].apply(float)
 
+        st.map(df_location[['latitude', 'longitude']].dropna()) 
+    else:
+        st.error("Location data not available.")
+    
+    st.write("### Model Performance")
+    performance_df = pd.DataFrame(model_scores, index=['Accuracy', 'Precision', 'Recall', 'F1-Score']).T * 100
+    st.dataframe(performance_df.style.background_gradient(cmap='YlGn'))
+  
     st.write("### Model Comparison")
     fig, ax = plt.subplots()
     performance_df.plot(kind='bar', ax=ax)
     ax.set_title('Model Comparison')
-    ax.set_ylabel('Score')
+    ax.set_ylabel('Percentage')
     st.pyplot(fig)
 
-    st.write("### Feature Importances")
+    st.write("### Model Importances")
     model_name = st.selectbox("Select Model", list(models.keys()))
 
-    if model_name == 'Random Forest':
+    # Prepare importances
+    importances = []
+    if hasattr(models[model_name], "feature_importances_"):
         importances = models[model_name].feature_importances_
-    elif model_name == 'XGBoost':
-        importances = models[model_name].feature_importances_
-    elif model_name == 'Logistic Regression':
-        importances = np.abs(models[model_name].coef_[0]) / np.sum(np.abs(models[model_name].coef_[0]))
+    elif hasattr(models[model_name], "coef_"):
+        importances = np.abs(models[model_name].coef_[0])
 
-    elif model_name == 'Artificial Neural Network':
-        importances = np.mean(np.abs(models[model_name].coefs_[0]), axis=1) / np.sum(np.mean(np.abs(models[model_name].coefs_[0]), axis=1))
+    if len(importances) > 0:
+        df_imp = pd.DataFrame({"Feature": X.columns, "Importance": importances})
+        df_imp = df_imp.sort_values(by='Importance', ascending=False)
+
+        st.bar_chart(df_imp.set_index("Feature"))
     else:
-        importances = np.ones(len(X.columns))  # fallback
-
-    idx = np.argsort(importances)[::-1]
-    top_features = X.columns[idx][:10]
-    top_vals = importances[idx][:10]
-
-    fig, ax = plt.subplots()
-    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='Blues_d')
-    ax.set_title(f'{model_name} Top 10 Features')
-    st.pyplot(fig)
+        st.info("Feature importances not available for this model.")
+    
 
 # --- Custom Prediction Interface --- 
 elif page == "Custom Prediction Interface":
-    st.title("Custom Prediction Interface")
+    st.title("Custom Prediction")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
 
@@ -172,7 +166,7 @@ elif page == "Custom Prediction Interface":
             choice = st.selectbox(f"{col}", options)
             input_data[col] = label_encoders[col].transform([choice])[0]
         else:
-            input_data[col] = st.slider(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+            input_data[col] = st.number_input(f"{col}", float(np.min(X[col])), float(np.max(X[col])), float(np.mean(X[col])))
 
     input_df = pd.DataFrame([input_data])
     prediction = model.predict(input_df)[0]
@@ -180,7 +174,7 @@ elif page == "Custom Prediction Interface":
     confidence = np.max(probs) * 100
 
     severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0] if 'Injury Severity' in label_encoders else prediction
-    st.success(f"**Predicted Severity:** {severity_label}")
+    st.success(f"**Predicted Injury Severity:** {severity_label}")
     st.info(f"**Confidence:** {confidence:.2f}%")
 
 # --- Reports --- 
@@ -194,15 +188,17 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Data Analysis:** View general statistics, distribution, and correlations.
-    - **Custom Prediction Interface:** Provide custom inputs to predict accident severity.
-    - **Reports:** Access a summary of the data.
-    - **Admin Page:** Update or upload a new dataset.
+    - **Home:** View Project Overview and Summary.
+    - **Data Analysis:** Distribution, Hotspots, Model Performance, Importances.
+    - **Custom Prediction Interface:** Input custom data to predict severity.
+    - **Reports:** Summary reports for stakeholders.
+    - **Admin:** (For administrators) Update or manage the dataset.
     """)
 
 # --- Admin --- 
 elif page == "Admin Page":
     st.title("Admin Panel")
     uploaded_file = st.file_uploader("Upload new dataset", type=["csv"])
+
     if uploaded_file:
-        st.success("Dataset uploaded. Reload app to use new data.")
+        st.success("Dataset uploaded. Reload the application to apply.")
