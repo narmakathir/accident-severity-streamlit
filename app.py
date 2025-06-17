@@ -48,7 +48,7 @@ def load_data():
 
     X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
-    X_train, X_test, y_train, y_test, label_encoders = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
 
@@ -60,7 +60,7 @@ def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgboost.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
+        'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
     trained_models = {}
@@ -72,7 +72,7 @@ def train_models():
         acc = accuracy_score(y_test, y_pred)
         prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
         rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
-        f1 = f_score = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+        f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
 
         trained_models[name] = model
         model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
@@ -101,12 +101,12 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("Data Analysis")
+    st.title("📊 Data Analysis")
     st.markdown("*Here you can explore key patterns in the data.*")
     st.divider()
 
     # Injury Distribution
-    st.subheader("Injury Severity Distribution")
+    st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
     sns.countplot(x='Injury Severity', data=df, ax=ax, palette='coolwarm')
     ax.set_title('Count of Injury Levels')
@@ -115,7 +115,7 @@ elif page == "Data Analysis":
     st.divider()
 
     # Hotspot Location
-    st.subheader("Hotspot Location")
+    st.subheader("➥ Hotspot Location")
     if 'Location' in df.columns:
         coords = df['Location'].str.extract(r'\((.*),(.*)\)')
         coords.columns = ['latitude', 'longitude']
@@ -130,7 +130,7 @@ elif page == "Data Analysis":
     st.divider()
 
     # Correlation Heatmap
-    st.subheader("Correlation Heatmap")
+    st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
     sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
@@ -140,7 +140,7 @@ elif page == "Data Analysis":
     st.divider()
 
     # Model Performance (without color fill, just table)
-    st.subheader("Model Performance")
+    st.subheader("➥ Model Performance")
     scores_df_percentage = scores_df.copy()
     scores_df_percentage = scores_df_percentage.round(2)
     st.table(scores_df_percentage)
@@ -148,19 +148,21 @@ elif page == "Data Analysis":
     st.divider()
 
     # Model Comparison Metrics (Using your code)
+    # Prepare performance_df from scores_df first
     performance_df = scores_df.copy()
     performance_df = performance_df.set_index('Model')
 
     fig, ax = plt.subplots()
-    performance_df.plot(kind='bar', ax=ax, color=['darkred', 'tomato', 'salmon', 'lightcoral'])
+    performance_df.plot(kind='bar', ax=ax, colormap='viridis')
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
 
     st.pyplot(fig)
 
+
     # Model-Specific Feature Importances
-    st.subheader("Model-Specific Feature Importances")
+    st.subheader("➥ Model-Specific Feature Importances")
     model_name = st.selectbox("Select Model", ['Random Forest', 'XGBoost', 'Logistic Regression', 'Artificial Neural Network'], index=0)
 
     importances = {
