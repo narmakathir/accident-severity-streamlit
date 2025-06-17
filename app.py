@@ -129,8 +129,8 @@ elif page == "Data Analysis":
         st.error("Location column not present.")
     st.divider()
 
-    # Pearson's Correlation Heatmap
-    st.subheader("➥ Pearson's Correlation")
+    # Correlation Heatmap
+    st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
     sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
@@ -147,14 +147,26 @@ elif page == "Data Analysis":
 
     st.divider()
 
-    # Model Comparison (bar chart)
-    st.subheader("➥ Model Comparison")
+   # Model Comparison Metrics - Bar Plot (your style)
+    st.subheader("➥ Model Comparison Metrics")
+    metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+    x = np.arange(len(metrics))
+    width = 0.2
+
     fig, ax = plt.subplots()
-    scores_df_percentage.plot(kind='bar', ax=ax, color='#ff7f50') 
-    ax.set_title("Model Performance Comparison")
-    ax.set_xlabel("Models")
-    ax.set_ylabel("Score (%)")
-    ax.legend(loc='lower right')
+    ax.bar(x - width*1.5, model_scores['Logistic Regression'], width, label='Logistic Regression')
+    ax.bar(x - width*0.5, model_scores['Random Forest'], width, label='Random Forest')
+    ax.bar(x + width*0.5, model_scores['XGBoost'], width, label='XGBoost')
+    ax.bar(x + width*1.5, model_scores['Artificial Neural Network'], width, label='ANN')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics)
+    ax.set_ylim(0, 100)
+    ax.set_title('Model Comparison Metrics')
+    ax.set_ylabel('Score (%)')
+    ax.legend()
+    ax.grid(True, linestyle='--', alpha=0.6)
+    fig.tight_layout()
     st.pyplot(fig)
 
     st.divider()
