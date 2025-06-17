@@ -113,16 +113,6 @@ elif page == "Data Analysis":
     st.pyplot(fig)
 
     st.divider()
- 
-    # Correlation Heatmap
-    st.divider()
-    st.subheader("➥ Correlation Heatmap")
-    corr = df.corr(numeric_only=True)
-
-    fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)  # You can set annot=False for a clearer view
-    ax.set_title('Correlation Between Features')
-    st.pyplot(fig)
 
     # Hotspot Location
     st.subheader("➥ Hotspot Location")
@@ -139,11 +129,33 @@ elif page == "Data Analysis":
         st.error("Location column not present.")
     st.divider()
 
+    # Pearson's Correlation Heatmap
+    st.subheader("➥ Pearson's Correlation")
+    corr = df.select_dtypes(['number']).corr()
+    fig, ax = plt.subplots()
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    ax.set_title("Correlation Heatmap")
+    st.pyplot(fig)
+
+    st.divider()
+
     # Model Performance (without color fill, just table)
     st.subheader("➥ Model Performance")
     scores_df_percentage = scores_df.copy()
     scores_df_percentage = scores_df_percentage.round(2)
     st.table(scores_df_percentage)
+
+    st.divider()
+
+    # Model Comparison (bar chart)
+    st.subheader("➥ Model Comparison")
+    fig, ax = plt.subplots()
+    scores_df_percentage.plot(kind='bar', ax=ax, color='#ff7f50') 
+    ax.set_title("Model Performance Comparison")
+    ax.set_xlabel("Models")
+    ax.set_ylabel("Score (%)")
+    ax.legend(loc='lower right')
+    st.pyplot(fig)
 
     st.divider()
 
