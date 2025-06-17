@@ -147,16 +147,16 @@ elif page == "Data Analysis":
 
     st.divider()
 
-   # Model Comparison Metrics - Bar Plot (your style)
+    # Model Comparison Metrics (Using your code)
     st.subheader("➥ Model Comparison Metrics")
     metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
     x = np.arange(len(metrics))
     width = 0.2
 
     fig, ax = plt.subplots()
-    ax.bar(x - width*1.5, model_scores['Logistic Regression'], width, label='Logistic Regression')
-    ax.bar(x - width*0.5, model_scores['Random Forest'], width, label='Random Forest')
-    ax.bar(x + width*0.5, model_scores['XGBoost'], width, label='XGBoost')
+    ax.bar(x - width*1.5, model_scores['Logistic Regression'], width, label='LR')
+    ax.bar(x - width*0.5, model_scores['Random Forest'], width, label='RF')
+    ax.bar(x + width*0.5, model_scores['XGBoost'], width, label='XGB')
     ax.bar(x + width*1.5, model_scores['Artificial Neural Network'], width, label='ANN')
 
     ax.set_xticks(x)
