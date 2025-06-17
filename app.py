@@ -17,6 +17,18 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
+st.markdown("""
+<style>
+body {
+    color: #ffffff;
+    background: #111827;
+}
+.sidebar .css-1d391kg {
+    background: #111827;
+    color: #ffffff;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
@@ -85,7 +97,7 @@ models, scores_df = train_models()
 
 # --- Side Menu --- 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Custom Prediction Interface", "Reports", "User Manual", "Admin Page"])
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "User Manual", "Admin Page"])
 
 # --- Home --- 
 if page == "Home":
@@ -101,15 +113,23 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+    st.title("Data Analysis")
     st.markdown("*Here you can explore key patterns in the data.*")
     st.divider()
 
     # Injury Distribution
     st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='coolwarm')
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='dark')
     ax.set_title('Count of Injury Levels')
+    ax.set_facecolor("#111827")
+    fig.patch.set_facecolor("#111827")
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
+    ax.title.set_color('white')
+    for spine in ax.spines.values():
+        spine.set_color('white')
     st.pyplot(fig)
 
     st.divider()
@@ -135,6 +155,14 @@ elif page == "Data Analysis":
     fig, ax = plt.subplots()
     sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
+    ax.set_facecolor("#111827")
+    fig.patch.set_facecolor("#111827")
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
+    ax.title.set_color('white')
+    for spine in ax.spines.values():
+        spine.set_color('white')
     st.pyplot(fig)
 
     st.divider()
@@ -147,21 +175,7 @@ elif page == "Data Analysis":
 
     st.divider()
 
-    # Model Comparison Metrics (Using your code)
-    # Prepare performance_df from scores_df first
-    performance_df = scores_df.copy()
-    performance_df = performance_df.set_index('Model')
-
-    fig, ax = plt.subplots()
-    performance_df.plot(kind='bar', ax=ax, colormap='viridis')
-    ax.set_title('Model Comparison')
-    ax.set_ylabel('Score (%)')
-    ax.grid(True, linestyle='--', alpha=0.6)
-
-    st.pyplot(fig)
-
-
-    # Model-Specific Feature Importances
+    # Model-Specific Importances
     st.subheader("➥ Model-Specific Feature Importances")
     model_name = st.selectbox("Select Model", ['Random Forest', 'XGBoost', 'Logistic Regression', 'Artificial Neural Network'], index=0)
 
@@ -179,11 +193,19 @@ elif page == "Data Analysis":
     top_vals = importances_vals[sorted_idx][:10]
 
     fig, ax = plt.subplots()
-    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='coolwarm')
+    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='dark')
     ax.set_title(f'{model_name} Top 10 Features')
+    ax.set_facecolor("#111827")
+    fig.patch.set_facecolor("#111827")
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
+    ax.title.set_color('white')
+    for spine in ax.spines.values():
+        spine.set_color('white')
     st.pyplot(fig)
 
-# --- Custom Prediction Interface --- 
+# --- Predictions ---  
 elif page == "Custom Prediction Interface":
     st.title("Custom Prediction Interface")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
