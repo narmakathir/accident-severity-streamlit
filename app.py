@@ -56,7 +56,7 @@ def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
+        'XGBoost': xgboost.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
     trained_models = {}
@@ -78,7 +78,7 @@ models, model_scores = train_models()
 
 # --- Page Navigation --- 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Predictions", "Custom Prediction Interface", "Visualizations", "Reports", "User Manual", "Admin Page"])
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Custom Prediction Interface", "Reports", "User Manual", "Admin Page"])
 
 # --- Home --- 
 if page == "Home":
@@ -195,9 +195,7 @@ elif page == "User Manual":
     st.write("""
     **Instructions:**
     - **Data Analysis:** View general statistics, distribution, and correlations.
-    - **Predictions:** See model performance on test set.
     - **Custom Prediction Interface:** Provide custom inputs to predict accident severity.
-    - **Visualizations:** View confusion matrix and classification reports for each model.
     - **Reports:** Access a summary of the data.
     - **Admin Page:** Update or upload a new dataset.
     """)
