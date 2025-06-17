@@ -148,14 +148,18 @@ elif page == "Data Analysis":
     st.divider()
 
     # Model Comparison Metrics (Using your code)
-    st.write("### Model Comparison")
+    # Prepare performance_df from scores_df first
+    performance_df = scores_df.copy()
+    performance_df = performance_df.set_index('Model')
+
     fig, ax = plt.subplots()
-    performance_df.plot(kind='bar', ax=ax, colormap='viridis')  # viridis color scheme
+    performance_df.plot(kind='bar', ax=ax, colormap='viridis')
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
 
     st.pyplot(fig)
+
 
     # Model-Specific Feature Importances
     st.subheader("➥ Model-Specific Feature Importances")
