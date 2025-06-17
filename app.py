@@ -113,6 +113,16 @@ elif page == "Data Analysis":
     st.pyplot(fig)
 
     st.divider()
+ 
+    # Correlation Heatmap
+    st.divider()
+    st.subheader("➥ Correlation Heatmap")
+    corr = df.corr(numeric_only=True)
+
+    fig, ax = plt.subplots()
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)  # You can set annot=False for a clearer view
+    ax.set_title('Correlation Between Features')
+    st.pyplot(fig)
 
     # Hotspot Location
     st.subheader("➥ Hotspot Location")
