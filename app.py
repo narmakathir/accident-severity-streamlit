@@ -101,51 +101,44 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("Data Analysis")
-    st.write("### Injury Severity Distribution")
+    st.title("📊 Data Analysis")
+    st.markdown("*Here you can explore key patterns in the data.*")
+    st.divider()
+
+    # Injury Distribution
+    st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='viridis')
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='coolwarm')
+    ax.set_title('Count of Injury Levels')
     st.pyplot(fig)
 
-    st.write("### Correlation Heatmap")
-    fig, ax = plt.subplots()
-    sns.heatmap(df.corr(numeric_only=True), annot=False, cmap='viridis', ax=ax)
-    st.pyplot(fig)
+    st.divider()
 
-    st.write("### Hotspot Map")
+    # Hotspot Location
+    st.subheader("➥ Hotspot Location")
     if 'Location' in df.columns:
-        df_location = df.copy()
-        coords = df_location['Location'].dropna().str.split(',', expand=True)
+        coords = df['Location'].str.extract(r'\((.*),(.*)\)')
+        coords.columns = ['latitude', 'longitude']
 
-        df_location = df_location.loc[coords.index]
-        df_location['latitude'] = pd.to_numeric(coords[0], errors='coerce')
-        df_location['longitude'] = pd.to_numeric(coords[1], errors='coerce')
-
-        df_location = df_location.dropna(subset=['latitude', 'longitude'])
-
-        if not df_location.empty:
-            st.map(df_location[['latitude', 'longitude']])  # Streamlit's map is a base view
+        coords = coords.astype(float).dropna()
+        if not coords.empty:
+            st.map(coords)
         else:
-            st.error("Valid geographic data not available.")
+            st.error("No geographic data available.")
     else:
         st.error("Location column not present.")
-    
+    st.divider()
 
-    st.write("### Model Performance")
+    # Model Performance (without color fill, just table)
+    st.subheader("➥ Model Performance")
     scores_df_percentage = scores_df.copy()
-    scores_df_percentage[['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']] = scores_df_percentage[['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']].apply(lambda x: x.round(2))
-    st.dataframe(scores_df_percentage.style.format({"Accuracy (%)": "{:.2f}%", "Precision (%)": "{:.2f}%", "Recall (%)": "{:.2f}%", "F1-Score (%)": "{:.2f}%"}).background_gradient(cmap='viridis'))
-    
+    scores_df_percentage = scores_df_percentage.round(2)
+    st.table(scores_df_percentage)
 
-    st.write("### Model Comparison")
-    fig, ax = plt.subplots()
-    scores_df.set_index('Model')[ ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'] ] .plot(kind='bar', ax=ax, color=['darkcyan', 'cyan', 'yellow', 'lightgreen'])
-    ax.set_title('Model Comparison')
-    ax.set_ylabel('Percentage')
-    ax.legend(loc='lower left')
-    st.pyplot(fig)
+    st.divider()
 
-    st.write("### Model-Specific Feature Importances")
+    # Model-Specific Feature Importances
+    st.subheader("➥ Model-Specific Feature Importances")
     model_name = st.selectbox("Select Model", ['Random Forest', 'XGBoost', 'Logistic Regression', 'Artificial Neural Network'], index=0)
 
     importances = {
@@ -162,7 +155,7 @@ elif page == "Data Analysis":
     top_vals = importances_vals[sorted_idx][:10]
 
     fig, ax = plt.subplots()
-    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='viridis')
+    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='coolwarm')
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
