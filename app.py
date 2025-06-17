@@ -104,12 +104,12 @@ elif page == "Data Analysis":
     st.title("Data Analysis")
     st.write("### Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='Blues')
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette='viridis')
     st.pyplot(fig)
 
     st.write("### Correlation Heatmap")
     fig, ax = plt.subplots()
-    sns.heatmap(df.corr(numeric_only=True), annot=False, cmap='coolwarm', ax=ax)
+    sns.heatmap(df.corr(numeric_only=True), annot=False, cmap='viridis', ax=ax)
     st.pyplot(fig)
 
     st.write("### Hotspot Map")
@@ -124,53 +124,46 @@ elif page == "Data Analysis":
         df_location = df_location.dropna(subset=['latitude', 'longitude'])
 
         if not df_location.empty:
-            st.map(df_location[['latitude', 'longitude']])
+            st.map(df_location[['latitude', 'longitude']])  # Streamlit's map is a base view
         else:
-            st.error("No geographic data available.")
+            st.error("Valid geographic data not available.")
     else:
-        st.error("Location data not available.")
+        st.error("Location column not present.")
     
+
     st.write("### Model Performance")
-    st.dataframe(scores_df.style.background_gradient(cmap='YlGn'))
+    scores_df_percentage = scores_df.copy()
+    scores_df_percentage[['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']] = scores_df_percentage[['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']].apply(lambda x: x.round(2))
+    st.dataframe(scores_df_percentage.style.format({"Accuracy (%)": "{:.2f}%", "Precision (%)": "{:.2f}%", "Recall (%)": "{:.2f}%", "F1-Score (%)": "{:.2f}%"}).background_gradient(cmap='viridis'))
+    
+
     st.write("### Model Comparison")
     fig, ax = plt.subplots()
-    scores_df.set_index('Model')[ ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'] ] .plot(kind='bar', ax=ax, color=['skyblue', 'lightgreen', 'salmon', 'yellow'])
+    scores_df.set_index('Model')[ ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'] ] .plot(kind='bar', ax=ax, color=['darkcyan', 'cyan', 'yellow', 'lightgreen'])
     ax.set_title('Model Comparison')
     ax.set_ylabel('Percentage')
     ax.legend(loc='lower left')
     st.pyplot(fig)
 
-    st.write("### Feature Importances")
-    importances_dict = {}
+    st.write("### Model-Specific Feature Importances")
+    model_name = st.selectbox("Select Model", ['Random Forest', 'XGBoost', 'Logistic Regression', 'Artificial Neural Network'], index=0)
 
-    # 1. Random Forest
-    importances_dict['Random Forest'] = models['Random Forest'].feature_importances_
+    importances = {
+        'Random Forest': models['Random Forest'].feature_importances_,
+        'XGBoost': models['XGBoost'].feature_importances_,
+        'Logistic Regression': np.abs(models['Logistic Regression'].coef_[0]),
+        'Artificial Neural Network': np.mean(np.abs(models['Artificial Neural Network'].coefs_[0]), axis=1),
+    }
+    importances_vals = importances[model_name]
+    importances_vals /= importances_vals.sum()
 
-    # 2. XGBoost
-    importances_dict['XGBoost'] = models['XGBoost'].feature_importances_
+    sorted_idx = np.argsort(importances_vals)[::-1]
+    top_features = X.columns[sorted_idx][:10]
+    top_vals = importances_vals[sorted_idx][:10]
 
-    # 3. Logistic Regression (absolute coefficients normalized)
-    lr_coef = np.abs(models['Logistic Regression'].coef_[0])
-    importances_dict['Logistic Regression'] = lr_coef / np.sum(lr_coef)
-
-    # 4. Artificial Neural Network (absolute first-layer weights average)
-    ann_coef = np.mean(np.abs(models['Artificial Neural Network'].coefs_[0]), axis=1)
-    importances_dict['Artificial Neural Network'] = ann_coef / np.sum(ann_coef)
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    axes = axes.flatten()
-
-    for idx, (model_name, importances) in enumerate(importances_dict.items()):
-
-        sorted_idx = np.argsort(importances)[::-1]
-        top_features = X.columns[sorted_idx][:10]
-        top_vals = importances[sorted_idx][:10]
-
-        sns.barplot(x=top_vals, y=top_features, ax=axes[idx], palette='Blues_d')
-        axes[idx].set_title(f'{model_name} Top 10 Features')
-
-    fig.suptitle('Feature Importances by Model')
-    fig.tight_layout()
+    fig, ax = plt.subplots()
+    sns.barplot(x=top_vals, y=top_features, ax=ax, palette='viridis')
+    ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
 # --- Custom Prediction Interface --- 
