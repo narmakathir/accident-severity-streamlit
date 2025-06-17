@@ -148,28 +148,14 @@ elif page == "Data Analysis":
     st.divider()
 
     # Model Comparison Metrics (Using your code)
-    st.subheader("➥ Model Comparison Metrics")
-    metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-    x = np.arange(len(metrics))
-    width = 0.2
-
+    st.write("### Model Comparison")
     fig, ax = plt.subplots()
-    ax.bar(x - width*1.5, model_scores['Logistic Regression'], width, label='LR')
-    ax.bar(x - width*0.5, model_scores['Random Forest'], width, label='RF')
-    ax.bar(x + width*0.5, model_scores['XGBoost'], width, label='XGB')
-    ax.bar(x + width*1.5, model_scores['Artificial Neural Network'], width, label='ANN')
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(metrics)
-    ax.set_ylim(0, 100)
-    ax.set_title('Model Comparison Metrics')
+    performance_df.plot(kind='bar', ax=ax, colormap='viridis')  # viridis color scheme
+    ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
-    ax.legend()
     ax.grid(True, linestyle='--', alpha=0.6)
-    fig.tight_layout()
-    st.pyplot(fig)
 
-    st.divider()
+    st.pyplot(fig)
 
     # Model-Specific Feature Importances
     st.subheader("➥ Model-Specific Feature Importances")
