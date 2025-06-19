@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 PALETTE = sns.color_palette("coolwarm")
-plt.style.use("whitegrid")
+plt.style.use("whitegrid")  # Correct matplotlib style name
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
@@ -101,7 +101,7 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+    st.title("Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
