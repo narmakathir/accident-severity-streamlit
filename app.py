@@ -17,10 +17,9 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-
-# Set seaborn style properly for whitegrid
-sns.set_style("whitegrid")
-PALETTE = sns.color_palette("coolwarm")
+PALETTE = sns.color_palette("crest")
+palette_hex = PALETTE.as_hex()  # for matplotlib plots
+plt.style.use("seaborn-whitegrid")  # Adjust for light/dark mode
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
@@ -58,7 +57,7 @@ def load_data():
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models --- 
-@st.cache_resource  # Removed persist="disk"
+@st.cache_resource(persist="disk")
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
@@ -103,7 +102,7 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+    st.title("Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
@@ -130,7 +129,7 @@ elif page == "Data Analysis":
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    sns.heatmap(corr, cmap='crest', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
@@ -142,8 +141,7 @@ elif page == "Data Analysis":
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
-    colors = sns.color_palette("coolwarm", n_colors=len(performance_df)).as_hex()
-    performance_df.plot(kind='bar', ax=ax, color=colors)
+    performance_df.plot(kind='bar', ax=ax, color=palette_hex[:performance_df.shape[0]])
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
@@ -210,8 +208,6 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Home:**
-    - **Data Analysis:**
-    - **Custom Prediction Interface:**
-    - **Reports:**
-    """)
+    - **Home:** """)
+
+
