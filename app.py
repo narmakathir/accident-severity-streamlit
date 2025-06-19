@@ -58,7 +58,7 @@ def load_data():
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models --- 
-@st.cache_resource(persist="disk")
+@st.cache_resource  # Removed persist="disk"
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
