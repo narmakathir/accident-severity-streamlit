@@ -28,7 +28,7 @@ This project uses machine learning techniques to analyze past traffic data for a
 """
 
 # --- Load Dataset --- 
-@st.cache_data(persist="disk")
+@st.cache_data
 def load_data():
     url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
     df = pd.read_csv(url)
@@ -56,7 +56,7 @@ def load_data():
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models --- 
-@st.cache_resource(persist="disk")
+@st.cache_resource
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
