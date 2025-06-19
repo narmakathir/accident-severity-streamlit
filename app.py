@@ -25,7 +25,7 @@ def get_palette(name, n_colors=10):
     except:
         return sns.color_palette("tab10", n_colors=n_colors)
 
-plt.style.use("seaborn-whitegrid")
+plt.style.use("ggplot")  # Or use 'default', 'classic', 'bmh', 'fivethirtyeight', etc.
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
