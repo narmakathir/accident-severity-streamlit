@@ -101,7 +101,7 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+    st.title("Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
@@ -198,7 +198,7 @@ elif page == "Custom Prediction Interface":
 
 # --- Reports --- 
 elif page == "Reports":
-    st.title("Generated Reports")
+    st.title("Generated Reports Update later")
     st.write("### Dataset Summary")
     st.dataframe(df.describe())    
 
@@ -207,8 +207,5 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Home:** Overview and dataset preview.
-    - **Data Analysis:** View distributions, hotspots, correlations, model performance, and top features.
-    - **Custom Prediction:** Input values to get accident severity predictions.
-    - **Reports:** Descriptive statistics summary.
+   
     """)
