@@ -1,4 +1,4 @@
-# --- Imports --- 
+# --- Imports ---
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,21 +15,19 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
-# --- Config --- 
+# --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-
-# Set seaborn style properly for whitegrid
 sns.set_style("whitegrid")
-PALETTE = sns.color_palette("coolwarm")
+PALETTE = sns.color_palette("Set2")
 
-# --- Project Overview --- 
+# --- Project Overview ---
 PROJECT_OVERVIEW = """
 Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
  
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
 
-# --- Load Dataset --- 
+# --- Load Dataset ---
 @st.cache_data(persist="disk")
 def load_data():
     url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
@@ -37,6 +35,8 @@ def load_data():
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
+
+    df['Location_Original'] = df['Location']  # Preserve for mapping
 
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
@@ -57,8 +57,8 @@ def load_data():
 
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
-# --- Train Models --- 
-@st.cache_resource  # Removed persist="disk"
+# --- Train Models ---
+@st.cache_resource
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
@@ -85,23 +85,23 @@ def train_models():
 
 models, scores_df = train_models()
 
-# --- Side Menu --- 
+# --- Side Menu ---
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Custom Prediction Interface", "Reports", "User Manual"])
 
-# --- Home --- 
+# --- Home ---
 if page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.write(PROJECT_OVERVIEW)
 
     st.subheader("Dataset Preview")
-    st.dataframe(df.copy().head())    
+    st.dataframe(df.copy().head())
 
     st.subheader("Dataset Summary")
     st.write(f"**Number of Records:** {len(df)}")
     st.write(f"**Features:** {list(X.columns)}")
 
-# --- Data Analysis --- 
+# --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("📊 Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
@@ -115,22 +115,22 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location' in df.columns:
-        coords = df['Location'].str.extract(r'\((.*),(.*)\)')
+    if 'Location_Original' in df.columns:
+        coords = df['Location_Original'].astype(str).str.extract(r'\((.*),(.*)\)')
         coords.columns = ['latitude', 'longitude']
         coords = coords.astype(float).dropna()
         if not coords.empty:
             st.map(coords)
         else:
-            st.error("No geographic data available.")
+            st.warning("No geographic data available.")
     else:
-        st.error("Location column not present.")
+        st.warning("Location data not found.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
@@ -142,8 +142,7 @@ elif page == "Data Analysis":
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
-    colors = sns.color_palette("coolwarm", n_colors=len(performance_df)).as_hex()
-    performance_df.plot(kind='bar', ax=ax, color=colors)
+    performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
@@ -171,7 +170,7 @@ elif page == "Data Analysis":
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
-# --- Predictions ---  
+# --- Custom Prediction Interface ---
 elif page == "Custom Prediction Interface":
     st.title("Custom Prediction Interface")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
@@ -199,19 +198,19 @@ elif page == "Custom Prediction Interface":
     st.success(f"**Predicted Injury Severity:** {severity_label}")
     st.info(f"**Confidence:** {confidence:.2f}%")
 
-# --- Reports --- 
+# --- Reports ---
 elif page == "Reports":
-    st.title("Update later Generated Reports") 
+    st.title("Update later Generated Reports")
     st.write("### Dataset Summary")
-    st.dataframe(df.describe())    
+    st.dataframe(df.describe())
 
-# --- User Manual --- 
+# --- User Manual ---
 elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Home:**
-    - **Data Analysis:**
-    - **Custom Prediction Interface:**
-    - **Reports:**
+    - **Home:** Overview and dataset preview.
+    - **Data Analysis:** Visualizations and model performance.
+    - **Custom Prediction Interface:** Try out predictions by selecting feature values.
+    - **Reports:** Statistical summary of the dataset.
     """)
