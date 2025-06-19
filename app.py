@@ -17,19 +17,14 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-PALETTE_NAME = "crest"
 
-def get_palette(name, n_colors=10):
-    try:
-        return sns.color_palette(name, n_colors=n_colors)
-    except:
-        return sns.color_palette("tab10", n_colors=n_colors)
-
-plt.style.use("ggplot")  # Or use 'default', 'classic', 'bmh', 'fivethirtyeight', etc.
+# Set seaborn style properly for whitegrid
+sns.set_style("whitegrid")
+PALETTE = sns.color_palette("coolwarm")
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
  
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
@@ -63,7 +58,7 @@ def load_data():
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models --- 
-@st.cache_resource(persist="disk")
+@st.cache_resource  # Removed persist="disk"
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
@@ -108,13 +103,13 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("Data Analysis")
+    st.title("📊 Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
     st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette=get_palette(PALETTE_NAME))
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette=PALETTE)
     ax.set_title('Count of Injury Levels')
     st.pyplot(fig)
     st.divider()
@@ -135,7 +130,7 @@ elif page == "Data Analysis":
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='crest', annot=False, ax=ax)
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
@@ -147,7 +142,8 @@ elif page == "Data Analysis":
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
-    performance_df.plot(kind='bar', ax=ax, color=get_palette(PALETTE_NAME, len(performance_df.columns)))
+    colors = sns.color_palette("coolwarm", n_colors=len(performance_df)).as_hex()
+    performance_df.plot(kind='bar', ax=ax, color=colors)
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
@@ -171,7 +167,7 @@ elif page == "Data Analysis":
     top_vals = importances_vals[sorted_idx][:10]
 
     fig, ax = plt.subplots()
-    sns.barplot(x=top_vals, y=top_features, ax=ax, palette=get_palette(PALETTE_NAME, len(top_vals)))
+    sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
@@ -214,8 +210,8 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Home**: 
-    - **Data Analysis**: 
-    - **Custom Prediction Interface**:
-    - **Reports**: 
+    - **Home:**
+    - **Data Analysis:**
+    - **Custom Prediction Interface:**
+    - **Reports:**
     """)
