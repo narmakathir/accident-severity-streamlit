@@ -17,11 +17,19 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
+PALETTE_NAME = "crest"
+
+def get_palette(name, n_colors=10):
+    try:
+        return sns.color_palette(name, n_colors=n_colors)
+    except:
+        return sns.color_palette("tab10", n_colors=n_colors)
+
 plt.style.use("seaborn-whitegrid")
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.
  
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
@@ -104,14 +112,14 @@ elif page == "Data Analysis":
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
-    st.subheader("➔ Injury Severity Distribution")
+    st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette="Set2")
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette=get_palette(PALETTE_NAME))
     ax.set_title('Count of Injury Levels')
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➔ Hotspot Location")
+    st.subheader("➥ Hotspot Location")
     if 'Location' in df.columns:
         coords = df['Location'].str.extract(r'\((.*),(.*)\)')
         coords.columns = ['latitude', 'longitude']
@@ -124,30 +132,29 @@ elif page == "Data Analysis":
         st.error("Location column not present.")
     st.divider()
 
-    st.subheader("➔ Correlation Heatmap")
+    st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    sns.heatmap(corr, cmap='crest', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➔ Model Performance")
+    st.subheader("➥ Model Performance")
     st.table(scores_df.round(2))
     st.divider()
 
-    st.subheader("➔ Model Comparison Bar Chart")
+    st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
-    colors = sns.color_palette("tab10", n_colors=len(performance_df.columns)).as_hex()
-    performance_df.plot(kind='bar', ax=ax, color=colors)
+    performance_df.plot(kind='bar', ax=ax, color=get_palette(PALETTE_NAME, len(performance_df.columns)))
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➔ Model-Specific Feature Importances")
+    st.subheader("➥ Model-Specific Feature Importances")
     model_name = st.selectbox("Select Model", list(models.keys()), index=1)
 
     importances = {
@@ -164,7 +171,7 @@ elif page == "Data Analysis":
     top_vals = importances_vals[sorted_idx][:10]
 
     fig, ax = plt.subplots()
-    sns.barplot(x=top_vals, y=top_features, ax=ax, palette="Set1")
+    sns.barplot(x=top_vals, y=top_features, ax=ax, palette=get_palette(PALETTE_NAME, len(top_vals)))
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
@@ -207,9 +214,8 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-    - **Home:** 
-    - **Data Analysis:** 
-    - **Custom Prediction Interface:**
-    - **Reports:** 
-    - **User Manual:** 
+    - **Home**: 
+    - **Data Analysis**: 
+    - **Custom Prediction Interface**:
+    - **Reports**: 
     """)
