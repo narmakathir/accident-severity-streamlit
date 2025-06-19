@@ -17,8 +17,8 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-PALETTE = sns.color_palette("crest")
-sns.set_theme(style="whitegrid", palette=PALETTE)
+PALETTE = sns.color_palette("coolwarm")  # Changed palette to coolwarm
+plt.style.use("seaborn-whitegrid")  # Adjust for light/dark mode
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
@@ -28,7 +28,7 @@ This project uses machine learning techniques to analyze past traffic data for a
 """
 
 # --- Load Dataset --- 
-@st.cache_data
+@st.cache_data(persist="disk")
 def load_data():
     url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
     df = pd.read_csv(url)
@@ -56,7 +56,7 @@ def load_data():
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models --- 
-@st.cache_resource
+@st.cache_resource(persist="disk")
 def train_models():
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
@@ -101,7 +101,7 @@ if page == "Home":
 
 # --- Data Analysis --- 
 elif page == "Data Analysis":
-    st.title("Data Analysis")
+    st.title("📊 Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
@@ -128,7 +128,7 @@ elif page == "Data Analysis":
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='crest', annot=False, ax=ax)
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)  # heatmap with coolwarm cmap
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
@@ -198,7 +198,7 @@ elif page == "Custom Prediction Interface":
 
 # --- Reports --- 
 elif page == "Reports":
-    st.title("Generated Reports Update later")
+    st.title("Update later Generated Reports") 
     st.write("### Dataset Summary")
     st.dataframe(df.describe())    
 
@@ -207,5 +207,5 @@ elif page == "User Manual":
     st.title("User Manual")
     st.write("""
     **Instructions:**
-   
+    - **Home:**
     """)
