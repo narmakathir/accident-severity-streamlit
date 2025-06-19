@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 PALETTE = sns.color_palette("coolwarm")
-plt.style.use("seaborn-whitegrid")  # Adjust for light/dark mode
+plt.style.use("whitegrid")
 
 # --- Project Overview --- 
 PROJECT_OVERVIEW = """
