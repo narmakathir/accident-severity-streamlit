@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 
 # --- Config --- 
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-PALETTE = sns.color_palette("coolwarm")  # Changed palette to coolwarm
+PALETTE = sns.color_palette("coolwarm")
 plt.style.use("seaborn-whitegrid")  # Adjust for light/dark mode
 
 # --- Project Overview --- 
@@ -113,25 +113,22 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-
-if 'Location' in df.columns:
-    loc_str = df['Location'].astype(str)
-    coords = loc_str.str.extract(r'\((.*),(.*)\)')
-    coords.columns = ['latitude', 'longitude']
-    coords = coords.astype(float).dropna()
-    if not coords.empty:
-        st.map(coords)
+    if 'Location' in df.columns:
+        coords = df['Location'].str.extract(r'\((.*),(.*)\)')
+        coords.columns = ['latitude', 'longitude']
+        coords = coords.astype(float).dropna()
+        if not coords.empty:
+            st.map(coords)
+        else:
+            st.error("No geographic data available.")
     else:
-        st.error("No geographic data available.")
-else:
-    st.error("Location column not present.")
-
+        st.error("Location column not present.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)  # heatmap with coolwarm cmap
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
     ax.set_title("Correlation Heatmap")
     st.pyplot(fig)
     st.divider()
@@ -143,7 +140,8 @@ else:
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
-    performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
+    colors = sns.color_palette("coolwarm", n_colors=len(performance_df)).as_hex()
+    performance_df.plot(kind='bar', ax=ax, color=colors)
     ax.set_title('Model Comparison')
     ax.set_ylabel('Score (%)')
     ax.grid(True, linestyle='--', alpha=0.6)
@@ -211,4 +209,7 @@ elif page == "User Manual":
     st.write("""
     **Instructions:**
     - **Home:**
+    - **Data Analysis:**
+    - **Custom Prediction Interface:**
+    - **Reports:**
     """)
