@@ -113,16 +113,19 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location' in df.columns:
-        coords = df['Location'].str.extract(r'\((.*),(.*)\)')
-        coords.columns = ['latitude', 'longitude']
-        coords = coords.astype(float).dropna()
-        if not coords.empty:
-            st.map(coords)
-        else:
-            st.error("No geographic data available.")
+
+if 'Location' in df.columns:
+    loc_str = df['Location'].astype(str)
+    coords = loc_str.str.extract(r'\((.*),(.*)\)')
+    coords.columns = ['latitude', 'longitude']
+    coords = coords.astype(float).dropna()
+    if not coords.empty:
+        st.map(coords)
     else:
-        st.error("Location column not present.")
+        st.error("No geographic data available.")
+else:
+    st.error("Location column not present.")
+
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
