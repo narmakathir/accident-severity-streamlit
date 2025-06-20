@@ -114,7 +114,7 @@ elif page == "Data Analysis":
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➥ Hotspot Location")
+
    st.subheader("➥ Hotspot Location")
 
 import re
