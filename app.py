@@ -116,28 +116,28 @@ elif page == "Data Analysis":
 
     st.subheader("➥ Hotspot Location")
 
-if 'Location_Original' in df.columns:
-    # Show raw sample values
-    st.markdown("**Sample Raw Location Data:**")
-    st.write(df['Location_Original'].dropna().unique()[:5])
+    if 'Location_Original' in df.columns:
+        # Show sample raw data
+        st.markdown("**Raw Sample Location Data**")
+        st.write(df['Location_Original'].dropna().unique()[:5])
 
-    # Extract coordinates
-    coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
-    coords.columns = ['latitude', 'longitude']
+        # Extract coordinates
+        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
+        coords.columns = ['latitude', 'longitude']
 
-    # Debug step: Show extracted coords
-    st.markdown("**Extracted Coordinates Preview:**")
-    st.write(coords.head())
+        # Show parsed preview
+        st.markdown("**Parsed Coordinates Preview**")
+        st.write(coords.head())
 
-    # Convert to float & drop NaNs
-    coords = coords.astype(float).dropna()
-
-    if not coords.empty:
-        st.map(coords)
+        # Convert and clean
+        coords = coords.astype(float).dropna()
+        if not coords.empty:
+            st.map(coords)
+        else:
+            st.warning("No valid geographic coordinates found in the dataset.")
     else:
-        st.warning("No valid geographic coordinates found in the dataset.")
-    else:
-    st.warning("Location data not found.")
+        st.warning("Location data not found.")
+    st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
