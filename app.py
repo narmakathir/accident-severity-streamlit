@@ -27,6 +27,41 @@ Traffic accidents are a major problem worldwide, causing several fatalities, dam
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
 
+# --- Normalize Text Values ---
+def normalize_categories(df):
+    mappings = {
+        'Weather Condition': {
+            'Raining': 'Rain',
+            'Rainy': 'Rain',
+            'Drizzling': 'Rain',
+            'Sun': 'Sunny',
+            'Clear': 'Sunny',
+            'Foggy': 'Fog',
+            'Overcast': 'Cloudy'
+        },
+        'Road Condition': {
+            'Wet': 'Wet',
+            'Dry': 'Dry',
+            'Snowy': 'Snow/Ice',
+            'Snow/Ice': 'Snow/Ice',
+            'Icy': 'Snow/Ice'
+        },
+        'Light Condition': {
+            'Dark - No Street Lights': 'Dark',
+            'Dark - Street Lights Off': 'Dark',
+            'Dark - Street Lights On': 'Dark',
+            'Daylight': 'Daylight'
+        },
+        # Add more column mappings as needed
+    }
+
+    for col, replacements in mappings.items():
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().str.title()
+            df[col] = df[col].replace(replacements)
+
+    return df
+
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
 def load_data():
@@ -38,9 +73,11 @@ def load_data():
 
     df['Location_Original'] = df['Location']  # Preserve original for mapping
 
+    df = normalize_categories(df)
+
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        df[col] = df[col].astype(str).str.strip().str.title()  # Normalize text
+        df[col] = df[col].astype(str).str.strip().str.title()
         le = LabelEncoder()
         df[col] = le.fit_transform(df[col])
         label_encoders[col] = le
@@ -100,7 +137,7 @@ if page == "Home":
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
-    st.title(" Data Analysis & Insights")
+    st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
@@ -167,17 +204,17 @@ elif page == "Data Analysis":
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
 
-# --- Custom Prediction Interface ---
+# --- Prediction ---
 elif page == "Prediction":
-    st.title("Custom Prediction ")
+    st.title("Custom Prediction")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
 
     input_data = {}
     for col in X.columns:
         if col in label_encoders:
-            options = list(label_encoders[col].classes_)
-            choice = st.selectbox(f"{col}", sorted(set(options)))
+            options = sorted(label_encoders[col].classes_)
+            choice = st.selectbox(f"{col}", options)
             input_data[col] = label_encoders[col].transform([choice])[0]
         else:
             input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
@@ -201,13 +238,13 @@ elif page == "Reports":
     st.write("### Dataset Summary")
     st.dataframe(df.describe())
 
-# --- User Manual ---
+# --- Help ---
 elif page == "Help":
     st.title("User Manual")
     st.write("""
     **Instructions:**
     - **Home:** Overview and dataset preview.
     - **Data Analysis:** Visualizations and model performance.
-    - **Custom Prediction Interface:** Try out predictions by selecting feature values.
-    - **Reports:** Statistical summary of the dataset.
+    - **Prediction:** Try predictions by selecting input values.
+    - **Reports:** View dataset summary statistics.
     """)
