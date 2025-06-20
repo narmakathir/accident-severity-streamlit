@@ -40,6 +40,7 @@ def load_data():
 
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
+        df[col] = df[col].astype(str).str.strip().str.title()  # Normalize text
         le = LabelEncoder()
         df[col] = le.fit_transform(df[col])
         label_encoders[col] = le
@@ -175,8 +176,8 @@ elif page == "Prediction":
     input_data = {}
     for col in X.columns:
         if col in label_encoders:
-            options = sorted(set(label_encoders[col].classes_))
-            choice = st.selectbox(f"{col}", options)
+            options = list(label_encoders[col].classes_)
+            choice = st.selectbox(f"{col}", sorted(set(options)))
             input_data[col] = label_encoders[col].transform([choice])[0]
         else:
             input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
