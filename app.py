@@ -36,7 +36,7 @@ def load_data():
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    df['Location_Original'] = df['Location']  # Preserve original for mapping
+    df['Location_Original'] = df['Location']  # Preserve for mapping
 
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
@@ -103,24 +103,21 @@ if page == "Home":
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+    st.title("\U0001F4CA Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
-    st.subheader("➥ Injury Severity Distribution")
+    st.subheader("\u279E Injury Severity Distribution")
     fig, ax = plt.subplots()
     sns.countplot(x='Injury Severity', data=df, ax=ax, palette=PALETTE)
     ax.set_title('Count of Injury Levels')
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➥ Hotspot Location")
+    st.subheader("\u279E Hotspot Location")
     if 'Location_Original' in df.columns:
-        # Optional: Show sample data to debug
-        st.write("📌 Sample Location Data:", df['Location_Original'].dropna().head())
-
-        # Improved regex: handles spacing and numeric format better
-        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
+        st.write("\U0001F4CC Sample Location Data:", df['Location_Original'].dropna().head())
+        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([\-\d.]+)\s*,\s*([\-\d.]+)\s*\)')
         coords.columns = ['latitude', 'longitude']
 
         try:
@@ -128,14 +125,14 @@ elif page == "Data Analysis":
             if not coords.empty:
                 st.map(coords)
             else:
-                st.warning("⚠️ No geographic data available after parsing. Check Location format.")
+                st.warning("\u26A0\ufe0f No geographic data available after parsing. Check Location format.")
         except Exception as e:
             st.error(f"Error parsing coordinates: {e}")
     else:
-        st.warning("⚠️ Location data not found in the dataset.")
+        st.warning("\u26A0\ufe0f Location data not found in the dataset.")
     st.divider()
 
-    st.subheader("➥ Correlation Heatmap")
+    st.subheader("\u279E Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
     sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
@@ -143,11 +140,11 @@ elif page == "Data Analysis":
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➥ Model Performance")
+    st.subheader("\u279E Model Performance")
     st.table(scores_df.round(2))
     st.divider()
 
-    st.subheader("➥ Model Comparison Bar Chart")
+    st.subheader("\u279E Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
     performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
@@ -157,7 +154,7 @@ elif page == "Data Analysis":
     st.pyplot(fig)
     st.divider()
 
-    st.subheader("➥ Model-Specific Feature Importances")
+    st.subheader("\u279E Model-Specific Feature Importances")
     model_name = st.selectbox("Select Model", list(models.keys()), index=1)
 
     importances = {
@@ -177,7 +174,6 @@ elif page == "Data Analysis":
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
-
 
 # --- Custom Prediction Interface ---
 elif page == "Custom Prediction Interface":
@@ -223,3 +219,4 @@ elif page == "User Manual":
     - **Custom Prediction Interface:** Try out predictions by selecting feature values.
     - **Reports:** Statistical summary of the dataset.
     """)
+
