@@ -87,7 +87,7 @@ models, scores_df = train_models()
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Custom Prediction Interface", "Reports", "User Manual"])
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Help"])
 
 # --- Home ---
 if page == "Home":
@@ -97,13 +97,9 @@ if page == "Home":
     st.subheader("Dataset Preview")
     st.dataframe(df.copy().head())
 
-    st.subheader("Dataset Summary")
-    st.write(f"**Number of Records:** {len(df)}")
-    st.write(f"**Features:** {list(X.columns)}")
-
 # --- Data Analysis ---
-elif page == "Data Analysis":
-    st.title("📊 Data Analysis")
+elif page == "Data Analysis & Insights":
+    st.title(" Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
@@ -171,8 +167,8 @@ elif page == "Data Analysis":
     st.pyplot(fig)
 
 # --- Custom Prediction Interface ---
-elif page == "Custom Prediction Interface":
-    st.title("Custom Prediction Interface")
+elif page == "Prediction":
+    st.title("Custom Prediction ")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
 
@@ -205,7 +201,7 @@ elif page == "Reports":
     st.dataframe(df.describe())
 
 # --- User Manual ---
-elif page == "User Manual":
+elif page == "Help":
     st.title("User Manual")
     st.write("""
     **Instructions:**
