@@ -114,8 +114,8 @@ elif page == "Data Analysis":
     st.pyplot(fig)
     st.divider()
 
-
-   st.subheader("➥ Hotspot Location")
+    # --- Hotspot Location ---
+st.subheader("➥ Hotspot Location")
 
 import re
 
@@ -142,6 +142,8 @@ if not coords_df.empty:
     st.map(coords_df)
 else:
     st.warning("No valid geographic coordinates found in the dataset.")
+
+
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
