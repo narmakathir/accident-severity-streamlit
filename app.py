@@ -98,8 +98,8 @@ if page == "Home":
     st.dataframe(df.copy().head())
 
 # --- Data Analysis ---
-elif page == "Data Analysis & Insights":
-    st.title(" Data Analysis")
+elif page == "Data Analysis":
+    st.title(" Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
