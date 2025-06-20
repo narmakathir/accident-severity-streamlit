@@ -115,17 +115,33 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
-        coords = df['Location_Original'].astype(str).str.extract(r'\((.*),(.*)\)')
-        coords.columns = ['latitude', 'longitude']
-        coords = coords.astype(float).dropna()
-        if not coords.empty:
-            st.map(coords)
-        else:
-            st.warning("No geographic data available.")
-    else:
-        st.warning("Location data not found.")
-    st.divider()
+   st.subheader("➥ Hotspot Location")
+
+import re
+
+def extract_coords(location_str):
+    match = re.search(r'\(?\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\)?', str(location_str))
+    if match:
+        return float(match.group(1)), float(match.group(2))
+    return None, None
+
+latitudes = []
+longitudes = []
+
+for loc in df['Location']:
+    lat, lon = extract_coords(loc)
+    latitudes.append(lat)
+    longitudes.append(lon)
+
+coords_df = pd.DataFrame({
+    'latitude': latitudes,
+    'longitude': longitudes
+}).dropna()
+
+if not coords_df.empty:
+    st.map(coords_df)
+else:
+    st.warning("No valid geographic coordinates found in the dataset.")
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
