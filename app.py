@@ -101,7 +101,6 @@ if page == "Home":
     st.write(f"**Number of Records:** {len(df)}")
     st.write(f"**Features:** {list(X.columns)}")
 
-# --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("📊 Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
@@ -115,35 +114,34 @@ elif page == "Data Analysis":
     st.divider()
 
     # --- Hotspot Location ---
-st.subheader("➥ Hotspot Location")
+    st.subheader("➥ Hotspot Location")
 
-import re
+    import re
 
-def extract_coords(location_str):
-    match = re.search(r'\(?\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\)?', str(location_str))
-    if match:
-        return float(match.group(1)), float(match.group(2))
-    return None, None
+    def extract_coords(location_str):
+        match = re.search(r'\(?\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\)?', str(location_str))
+        if match:
+            return float(match.group(1)), float(match.group(2))
+        return None, None
 
-latitudes = []
-longitudes = []
+    latitudes = []
+    longitudes = []
 
-for loc in df['Location']:
-    lat, lon = extract_coords(loc)
-    latitudes.append(lat)
-    longitudes.append(lon)
+    for loc in df['Location']:
+        lat, lon = extract_coords(loc)
+        latitudes.append(lat)
+        longitudes.append(lon)
 
-coords_df = pd.DataFrame({
-    'latitude': latitudes,
-    'longitude': longitudes
-}).dropna()
+    coords_df = pd.DataFrame({
+        'latitude': latitudes,
+        'longitude': longitudes
+    }).dropna()
 
-if not coords_df.empty:
-    st.map(coords_df)
-else:
-    st.warning("No valid geographic coordinates found in the dataset.")
-
-
+    if not coords_df.empty:
+        st.map(coords_df)
+    else:
+        st.warning("No valid geographic coordinates found in the dataset.")
+    st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
@@ -187,6 +185,7 @@ else:
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
+
 
 # --- Custom Prediction Interface ---
 elif page == "Custom Prediction Interface":
