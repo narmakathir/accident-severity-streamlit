@@ -115,28 +115,24 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-
     if 'Location_Original' in df.columns:
-        # Show sample raw data
-        st.markdown("**Raw Sample Location Data**")
-        st.write(df['Location_Original'].dropna().unique()[:5])
+        # Optional: Show sample data to debug
+        st.write("📌 Sample Location Data:", df['Location_Original'].dropna().head())
 
-        # Extract coordinates
+        # Improved regex: handles spacing and numeric format better
         coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
         coords.columns = ['latitude', 'longitude']
 
-        # Show parsed preview
-        st.markdown("**Parsed Coordinates Preview**")
-        st.write(coords.head())
-
-        # Convert and clean
-        coords = coords.astype(float).dropna()
-        if not coords.empty:
-            st.map(coords)
-        else:
-            st.warning("No valid geographic coordinates found in the dataset.")
+        try:
+            coords = coords.astype(float).dropna()
+            if not coords.empty:
+                st.map(coords)
+            else:
+                st.warning("⚠️ No geographic data available after parsing. Check Location format.")
+        except Exception as e:
+            st.error(f"Error parsing coordinates: {e}")
     else:
-        st.warning("Location data not found.")
+        st.warning("⚠️ Location data not found in the dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
@@ -181,6 +177,7 @@ elif page == "Data Analysis":
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
+
 
 # --- Custom Prediction Interface ---
 elif page == "Custom Prediction Interface":
