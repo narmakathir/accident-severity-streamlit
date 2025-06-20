@@ -36,7 +36,7 @@ def load_data():
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    df['Location_Original'] = df['Location']  # Preserve for mapping
+    df['Location_Original'] = df['Location']  # Preserve original for mapping
 
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
@@ -101,6 +101,7 @@ if page == "Home":
     st.write(f"**Number of Records:** {len(df)}")
     st.write(f"**Features:** {list(X.columns)}")
 
+# --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("📊 Data Analysis")
     st.markdown("*Explore key patterns and model performance.*")
@@ -113,34 +114,17 @@ elif page == "Data Analysis":
     st.pyplot(fig)
     st.divider()
 
-    # --- Hotspot Location ---
     st.subheader("➥ Hotspot Location")
-
-    import re
-
-    def extract_coords(location_str):
-        match = re.search(r'\(?\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\)?', str(location_str))
-        if match:
-            return float(match.group(1)), float(match.group(2))
-        return None, None
-
-    latitudes = []
-    longitudes = []
-
-    for loc in df['Location']:
-        lat, lon = extract_coords(loc)
-        latitudes.append(lat)
-        longitudes.append(lon)
-
-    coords_df = pd.DataFrame({
-        'latitude': latitudes,
-        'longitude': longitudes
-    }).dropna()
-
-    if not coords_df.empty:
-        st.map(coords_df)
+    if 'Location_Original' in df.columns:
+        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
+        coords.columns = ['latitude', 'longitude']
+        coords = coords.astype(float).dropna()
+        if not coords.empty:
+            st.map(coords)
+        else:
+            st.warning("No geographic data available.")
     else:
-        st.warning("No valid geographic coordinates found in the dataset.")
+        st.warning("Location data not found.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
@@ -185,7 +169,6 @@ elif page == "Data Analysis":
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
     ax.set_title(f'{model_name} Top 10 Features')
     st.pyplot(fig)
-
 
 # --- Custom Prediction Interface ---
 elif page == "Custom Prediction Interface":
