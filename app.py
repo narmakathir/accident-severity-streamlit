@@ -175,7 +175,7 @@ elif page == "Prediction":
     input_data = {}
     for col in X.columns:
         if col in label_encoders:
-            options = list(label_encoders[col].classes_)
+            options = sorted(set(label_encoders[col].classes_))
             choice = st.selectbox(f"{col}", options)
             input_data[col] = label_encoders[col].transform([choice])[0]
         else:
