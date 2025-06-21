@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import os
+from io import StringIO
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -17,7 +19,10 @@ warnings.filterwarnings('ignore')
 
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-sns.set_style("whitegrid")
+
+# Set dark theme for visualizations
+plt.style.use('dark_background')
+sns.set_style("darkgrid")
 PALETTE = sns.color_palette("Set2")
 
 # --- Project Overview ---
@@ -64,14 +69,31 @@ def normalize_categories(df):
 
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
-def load_data():
-    url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
-    df = pd.read_csv(url)
+def load_data(file_path=None):
+    if file_path is None:
+        url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
+        df = pd.read_csv(url)
+    else:
+        df = pd.read_csv(file_path)
+        
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    df['Location_Original'] = df['Location']  # Preserve original for mapping
+    # Improved location parsing
+    if 'Location' in df.columns:
+        df['Location_Original'] = df['Location']  # Preserve original for mapping
+        # Extract coordinates from string if they exist
+        coords = df['Location'].astype(str).str.extract(r'\(([^,]+),\s*([^)]+)\)')
+        if not coords.empty:
+            coords.columns = ['latitude', 'longitude']
+            # Convert to numeric, handling errors
+            coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
+            coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
+            # Only keep valid coordinates
+            valid_coords = coords.dropna()
+            if not valid_coords.empty:
+                df[['latitude', 'longitude']] = coords
 
     df = normalize_categories(df)
 
@@ -87,17 +109,28 @@ def load_data():
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
-    X = df.drop([target_col, 'Location'], axis=1)
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
 
-df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
+# Initialize session state for data
+if 'data_loaded' not in st.session_state:
+    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
+    st.session_state.data_loaded = True
+    st.session_state.df = df
+    st.session_state.X = X
+    st.session_state.y = y
+    st.session_state.X_train = X_train
+    st.session_state.X_test = X_test
+    st.session_state.y_train = y_train
+    st.session_state.y_test = y_test
+    st.session_state.label_encoders = label_encoders
 
 # --- Train Models ---
 @st.cache_resource
-def train_models():
+def train_models(X_train, y_train, X_test, y_test):
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
@@ -121,11 +154,12 @@ def train_models():
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
-models, scores_df = train_models()
+models, scores_df = train_models(st.session_state.X_train, st.session_state.y_train, 
+                               st.session_state.X_test, st.session_state.y_test)
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Help"])
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin", "Help"])
 
 # --- Home ---
 if page == "Home":
@@ -133,7 +167,7 @@ if page == "Home":
     st.write(PROJECT_OVERVIEW)
 
     st.subheader("Dataset Preview")
-    st.dataframe(df.copy().head())
+    st.dataframe(st.session_state.df.copy().head())
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
@@ -143,29 +177,30 @@ elif page == "Data Analysis":
 
     st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
-    sns.countplot(x='Injury Severity', data=df, ax=ax, palette=PALETTE)
-    ax.set_title('Count of Injury Levels')
+    sns.countplot(x='Injury Severity', data=st.session_state.df, ax=ax, palette=PALETTE)
+    ax.set_title('Count of Injury Levels', color='white')
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
     st.pyplot(fig)
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
-        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
-        coords.columns = ['latitude', 'longitude']
-        coords = coords.astype(float).dropna()
+    if 'latitude' in st.session_state.df.columns and 'longitude' in st.session_state.df.columns:
+        coords = st.session_state.df[['latitude', 'longitude']].dropna()
         if not coords.empty:
             st.map(coords)
         else:
-            st.warning("No geographic data available.")
+            st.warning("No valid geographic coordinates available in the dataset.")
     else:
-        st.warning("Location data not found.")
+        st.warning("Latitude/Longitude columns not found in the dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
-    corr = df.select_dtypes(['number']).corr()
+    corr = st.session_state.df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
-    ax.set_title("Correlation Heatmap")
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    ax.set_title("Correlation Heatmap", color='white')
     st.pyplot(fig)
     st.divider()
 
@@ -177,8 +212,10 @@ elif page == "Data Analysis":
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots()
     performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
-    ax.set_title('Model Comparison')
-    ax.set_ylabel('Score (%)')
+    ax.set_title('Model Comparison', color='white')
+    ax.set_ylabel('Score (%)', color='white')
+    ax.tick_params(colors='white')
+    ax.legend(title='Metrics', title_fontsize='10', fontsize='8', facecolor='black', edgecolor='white', labelcolor='white')
     ax.grid(True, linestyle='--', alpha=0.6)
     st.pyplot(fig)
     st.divider()
@@ -196,12 +233,15 @@ elif page == "Data Analysis":
     importances_vals /= importances_vals.sum()
 
     sorted_idx = np.argsort(importances_vals)[::-1]
-    top_features = X.columns[sorted_idx][:10]
+    top_features = st.session_state.X.columns[sorted_idx][:10]
     top_vals = importances_vals[sorted_idx][:10]
 
     fig, ax = plt.subplots()
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
-    ax.set_title(f'{model_name} Top 10 Features')
+    ax.set_title(f'{model_name} Top 10 Features', color='white')
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
     st.pyplot(fig)
 
 # --- Prediction ---
@@ -211,21 +251,23 @@ elif page == "Prediction":
     model = models[selected_model]
 
     input_data = {}
-    for col in X.columns:
-        if col in label_encoders:
-            options = sorted(label_encoders[col].classes_)
+    for col in st.session_state.X.columns:
+        if col in st.session_state.label_encoders:
+            options = sorted(st.session_state.label_encoders[col].classes_)
             choice = st.selectbox(f"{col}", options)
-            input_data[col] = label_encoders[col].transform([choice])[0]
+            input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
         else:
-            input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+            input_data[col] = st.number_input(f"{col}", float(st.session_state.df[col].min()), 
+                                            float(st.session_state.df[col].max()), 
+                                            float(st.session_state.df[col].mean()))
 
     input_df = pd.DataFrame([input_data])
     prediction = model.predict(input_df)[0]
     probs = model.predict_proba(input_df)[0]
     confidence = np.max(probs) * 100
 
-    if 'Injury Severity' in label_encoders:
-        severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0]
+    if 'Injury Severity' in st.session_state.label_encoders:
+        severity_label = st.session_state.label_encoders['Injury Severity'].inverse_transform([prediction])[0]
     else:
         severity_label = prediction
 
@@ -234,9 +276,70 @@ elif page == "Prediction":
 
 # --- Reports ---
 elif page == "Reports":
-    st.title("Update later Generated Reports")
+    st.title("Generated Reports")
     st.write("### Dataset Summary")
-    st.dataframe(df.describe())
+    st.dataframe(st.session_state.df.describe())
+
+# --- Admin Page ---
+elif page == "Admin":
+    st.title("Admin Dashboard")
+    st.warning("This section is for administrators only.")
+    
+    password = st.text_input("Enter Admin Password:", type="password")
+    if password == "admin123":  # In production, use a more secure method
+        st.success("Authenticated")
+        
+        st.subheader("Upload New Dataset")
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+        
+        if uploaded_file is not None:
+            try:
+                # Read the uploaded file
+                stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
+                new_df = pd.read_csv(stringio)
+                
+                # Display preview
+                st.write("New Dataset Preview:")
+                st.dataframe(new_df.head())
+                
+                if st.button("Update System with New Dataset"):
+                    # Clear all caches
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    
+                    # Reload data with the new file
+                    with st.spinner("Updating system with new data..."):
+                        # Save to temp file
+                        temp_path = "temp_uploaded_data.csv"
+                        new_df.to_csv(temp_path, index=False)
+                        
+                        # Reload data
+                        df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data(temp_path)
+                        
+                        # Update session state
+                        st.session_state.df = df
+                        st.session_state.X = X
+                        st.session_state.y = y
+                        st.session_state.X_train = X_train
+                        st.session_state.X_test = X_test
+                        st.session_state.y_train = y_train
+                        st.session_state.y_test = y_test
+                        st.session_state.label_encoders = label_encoders
+                        
+                        # Retrain models
+                        models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                        
+                        # Clean up
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                            
+                        st.success("System updated successfully! All pages will now use the new dataset.")
+                        st.experimental_rerun()
+                        
+            except Exception as e:
+                st.error(f"Error processing file: {str(e)}")
+    elif password:
+        st.error("Incorrect password")
 
 # --- Help ---
 elif page == "Help":
@@ -247,4 +350,5 @@ elif page == "Help":
     - **Data Analysis:** Visualizations and model performance.
     - **Prediction:** Try predictions by selecting input values.
     - **Reports:** View dataset summary statistics.
+    - **Admin:** Upload new datasets (admin only).
     """)
