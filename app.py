@@ -17,6 +17,10 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
+# --- Global Variables ---
+models = None
+scores_df = None
+
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
@@ -137,6 +141,8 @@ if 'data_loaded' not in st.session_state:
 # --- Train Models ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
+    global models, scores_df  # Declare as global here
+    
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
@@ -158,6 +164,7 @@ def train_models(X_train, y_train, X_test, y_test):
         model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
 
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
+    models = trained_models
     return trained_models, scores_df
 
 if 'data_loaded' in st.session_state:
@@ -350,7 +357,6 @@ elif page == "Admin":
                             st.session_state.label_encoders = label_encoders
                             
                             # Retrain models
-                            global models, scores_df
                             models, scores_df = train_models(X_train, y_train, X_test, y_test)
                             
                             # Clean up
