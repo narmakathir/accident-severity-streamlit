@@ -57,7 +57,6 @@ def normalize_categories(df):
             'Dark - Street Lights On': 'Dark',
             'Daylight': 'Daylight'
         },
-        # Add more column mappings as needed
     }
 
     for col, replacements in mappings.items():
@@ -75,6 +74,12 @@ def load_data(file_path=None):
         df = pd.read_csv(url)
     else:
         df = pd.read_csv(file_path)
+    
+    # Check if required columns exist
+    required_columns = ['Injury Severity']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing required columns in dataset: {', '.join(missing_columns)}")
         
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
@@ -82,15 +87,13 @@ def load_data(file_path=None):
 
     # Improved location parsing
     if 'Location' in df.columns:
-        df['Location_Original'] = df['Location']  # Preserve original for mapping
+        df['Location_Original'] = df['Location']
         # Extract coordinates from string if they exist
         coords = df['Location'].astype(str).str.extract(r'\(([^,]+),\s*([^)]+)\)')
         if not coords.empty:
             coords.columns = ['latitude', 'longitude']
-            # Convert to numeric, handling errors
             coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
             coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
-            # Only keep valid coordinates
             valid_coords = coords.dropna()
             if not valid_coords.empty:
                 df[['latitude', 'longitude']] = coords
@@ -117,16 +120,19 @@ def load_data(file_path=None):
 
 # Initialize session state for data
 if 'data_loaded' not in st.session_state:
-    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
-    st.session_state.data_loaded = True
-    st.session_state.df = df
-    st.session_state.X = X
-    st.session_state.y = y
-    st.session_state.X_train = X_train
-    st.session_state.X_test = X_test
-    st.session_state.y_train = y_train
-    st.session_state.y_test = y_test
-    st.session_state.label_encoders = label_encoders
+    try:
+        df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
+        st.session_state.data_loaded = True
+        st.session_state.df = df
+        st.session_state.X = X
+        st.session_state.y = y
+        st.session_state.X_train = X_train
+        st.session_state.X_test = X_test
+        st.session_state.y_train = y_train
+        st.session_state.y_test = y_test
+        st.session_state.label_encoders = label_encoders
+    except Exception as e:
+        st.error(f"Error loading initial data: {str(e)}")
 
 # --- Train Models ---
 @st.cache_resource
@@ -154,8 +160,9 @@ def train_models(X_train, y_train, X_test, y_test):
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
-models, scores_df = train_models(st.session_state.X_train, st.session_state.y_train, 
-                               st.session_state.X_test, st.session_state.y_test)
+if 'data_loaded' in st.session_state:
+    models, scores_df = train_models(st.session_state.X_train, st.session_state.y_train, 
+                                   st.session_state.X_test, st.session_state.y_test)
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
@@ -166,14 +173,21 @@ if page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.write(PROJECT_OVERVIEW)
 
-    st.subheader("Dataset Preview")
-    st.dataframe(st.session_state.df.copy().head())
+    if 'df' in st.session_state:
+        st.subheader("Dataset Preview")
+        st.dataframe(st.session_state.df.copy().head())
+    else:
+        st.error("No data available. Please check the dataset.")
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
+
+    if 'df' not in st.session_state:
+        st.error("No data available. Please check the dataset.")
+        st.stop()
 
     st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
@@ -247,6 +261,11 @@ elif page == "Data Analysis":
 # --- Prediction ---
 elif page == "Prediction":
     st.title("Custom Prediction")
+    
+    if 'X' not in st.session_state or 'label_encoders' not in st.session_state:
+        st.error("System not properly initialized. Please check the dataset.")
+        st.stop()
+        
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
 
@@ -277,8 +296,11 @@ elif page == "Prediction":
 # --- Reports ---
 elif page == "Reports":
     st.title("Generated Reports")
-    st.write("### Dataset Summary")
-    st.dataframe(st.session_state.df.describe())
+    if 'df' in st.session_state:
+        st.write("### Dataset Summary")
+        st.dataframe(st.session_state.df.describe())
+    else:
+        st.error("No data available. Please check the dataset.")
 
 # --- Admin Page ---
 elif page == "Admin":
@@ -313,28 +335,37 @@ elif page == "Admin":
                         temp_path = "temp_uploaded_data.csv"
                         new_df.to_csv(temp_path, index=False)
                         
-                        # Reload data
-                        df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data(temp_path)
-                        
-                        # Update session state
-                        st.session_state.df = df
-                        st.session_state.X = X
-                        st.session_state.y = y
-                        st.session_state.X_train = X_train
-                        st.session_state.X_test = X_test
-                        st.session_state.y_train = y_train
-                        st.session_state.y_test = y_test
-                        st.session_state.label_encoders = label_encoders
-                        
-                        # Retrain models
-                        models, scores_df = train_models(X_train, y_train, X_test, y_test)
-                        
-                        # Clean up
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
+                        try:
+                            # Reload data
+                            df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data(temp_path)
                             
-                        st.success("System updated successfully! All pages will now use the new dataset.")
-                        st.experimental_rerun()
+                            # Update session state
+                            st.session_state.df = df
+                            st.session_state.X = X
+                            st.session_state.y = y
+                            st.session_state.X_train = X_train
+                            st.session_state.X_test = X_test
+                            st.session_state.y_train = y_train
+                            st.session_state.y_test = y_test
+                            st.session_state.label_encoders = label_encoders
+                            
+                            # Retrain models
+                            global models, scores_df
+                            models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                            
+                            # Clean up
+                            if os.path.exists(temp_path):
+                                os.remove(temp_path)
+                                
+                            st.success("System updated successfully! All pages will now use the new dataset.")
+                            st.experimental_rerun()
+                            
+                        except ValueError as ve:
+                            st.error(f"Validation Error: {str(ve)}")
+                        except Exception as e:
+                            st.error(f"Error processing dataset: {str(e)}")
+                            if os.path.exists(temp_path):
+                                os.remove(temp_path)
                         
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
@@ -351,4 +382,6 @@ elif page == "Help":
     - **Prediction:** Try predictions by selecting input values.
     - **Reports:** View dataset summary statistics.
     - **Admin:** Upload new datasets (admin only).
+    
+    **Note:** All uploaded datasets must contain an 'Injury Severity' column.
     """)
