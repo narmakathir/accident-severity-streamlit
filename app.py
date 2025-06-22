@@ -75,7 +75,28 @@ def load_data(uploaded_file=None):
         url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
         df = pd.read_csv(url)
     else:
-        df = pd.read_csv(uploaded_file)
+        try:
+            # First check if file is empty
+            if uploaded_file.size == 0:
+                st.error("Uploaded file is empty")
+                st.stop()
+            
+            # Try reading the file
+            df = pd.read_csv(uploaded_file)
+            
+            # Check if dataframe is empty
+            if df.empty:
+                st.error("Uploaded file contains no data")
+                st.stop()
+                
+            # Check if dataframe has no columns
+            if len(df.columns) == 0:
+                st.error("Uploaded file has no recognizable columns")
+                st.stop()
+                
+        except Exception as e:
+            st.error(f"Error reading file: {str(e)}")
+            st.stop()
     
     # Basic data cleaning
     df.drop_duplicates(inplace=True)
@@ -421,25 +442,50 @@ elif page == "Admin":
     
     if uploaded_file is not None:
         try:
-            # Validate the file by trying to read it
+            # First check if file is empty
+            if uploaded_file.size == 0:
+                st.error("⚠️ Uploaded file is empty")
+                st.stop()
+            
+            # Try reading the first few bytes to check if it's a valid CSV
+            content = uploaded_file.getvalue().decode('utf-8')
+            if not content.strip():
+                st.error("⚠️ Uploaded file contains no data")
+                st.stop()
+                
+            # Try reading the file properly
+            uploaded_file.seek(0)  # Reset file pointer
             test_df = pd.read_csv(uploaded_file)
             
+            # Check if dataframe is empty
+            if test_df.empty:
+                st.error("⚠️ Uploaded file contains no data rows")
+                st.stop()
+                
+            # Check if dataframe has no columns
             if len(test_df.columns) == 0:
-                st.error("Uploaded file appears to be empty")
-            else:
-                st.session_state.uploaded_file = uploaded_file
-                st.success("New dataset uploaded successfully!")
+                st.error("⚠️ Uploaded file has no recognizable columns")
+                st.stop()
                 
-                # Clear caches
-                st.cache_data.clear()
-                st.cache_resource.clear()
-                
-                st.info("Please refresh the page or navigate to another section to see updates")
+            # If we get here, file is valid
+            st.session_state.uploaded_file = uploaded_file
+            st.success("✅ New dataset uploaded successfully!")
+            
+            # Clear caches
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            
+            st.info("ℹ️ Please refresh the page or navigate to another section to see updates")
+            
+        except pd.errors.EmptyDataError:
+            st.error("⚠️ Uploaded file appears to be empty or corrupted")
+        except UnicodeDecodeError:
+            st.error("⚠️ File encoding issue - please upload a standard UTF-8 CSV file")
         except Exception as e:
-            st.error(f"Error reading uploaded file: {str(e)}")
+            st.error(f"⚠️ Error reading uploaded file: {str(e)}")
     
     if st.button("Reset to Default Dataset"):
         st.session_state.uploaded_file = None
         st.cache_data.clear()
         st.cache_resource.clear()
-        st.success("Reset to default dataset complete! Refresh the page.")
+        st.success("✅ Reset to default dataset complete! Refresh the page.")
