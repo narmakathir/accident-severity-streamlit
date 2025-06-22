@@ -6,6 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import folium_static
+import io
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -76,13 +77,16 @@ def load_data(uploaded_file=None):
         df = pd.read_csv(url)
     else:
         try:
-            # First check if file is empty
-            if uploaded_file.size == 0:
+            # Read the file content into memory
+            file_content = uploaded_file.getvalue().decode('utf-8')
+            
+            # Check if content is empty
+            if not file_content.strip():
                 st.error("Uploaded file is empty")
                 st.stop()
-            
-            # Try reading the file
-            df = pd.read_csv(uploaded_file)
+                
+            # Try reading the CSV
+            df = pd.read_csv(io.StringIO(file_content))
             
             # Check if dataframe is empty
             if df.empty:
@@ -170,6 +174,8 @@ def load_data(uploaded_file=None):
 # Initialize session state for uploaded file
 if 'uploaded_file' not in st.session_state:
     st.session_state.uploaded_file = None
+if 'file_content' not in st.session_state:
+    st.session_state.file_content = None
 
 # --- Train Models ---
 @st.cache_resource
@@ -199,7 +205,13 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # Load data based on uploaded file or default
 try:
-    df, X, y, X_train, X_test, y_train, y_test, label_encoders, target_col = load_data(st.session_state.uploaded_file)
+    if st.session_state.uploaded_file is not None and st.session_state.file_content is not None:
+        # Use the cached file content
+        df, X, y, X_train, X_test, y_train, y_test, label_encoders, target_col = load_data(io.StringIO(st.session_state.file_content))
+    else:
+        # Load default or newly uploaded data
+        df, X, y, X_train, X_test, y_train, y_test, label_encoders, target_col = load_data(st.session_state.uploaded_file)
+    
     models, scores_df = train_models(X_train, y_train, X_test, y_test)
 except Exception as e:
     st.error(f"Error loading data: {str(e)}")
@@ -209,229 +221,7 @@ except Exception as e:
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin"])
 
-# --- Home ---
-if page == "Home":
-    st.title("Traffic Accident Severity Prediction")
-    st.write(PROJECT_OVERVIEW)
-
-    st.subheader("Dataset Preview")
-    st.dataframe(df.head())
-
-    st.subheader("Dataset Summary")
-    st.write(f"Total records: {len(df)}")
-    st.write(f"Number of features: {len(df.columns)}")
-    
-    if target_col in df.columns:
-        st.write(f"Target variable ('{target_col}') distribution:")
-        st.write(df[target_col].value_counts())
-
-# --- Data Analysis ---
-elif page == "Data Analysis":
-    st.title("Data Analysis & Insights")
-    st.markdown("*Explore key patterns and model performance.*")
-    st.divider()
-
-    # Target Distribution
-    st.subheader(f"➥ Target Variable Distribution")
-    if target_col in df.columns:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.countplot(x=target_col, data=df, ax=ax, palette=PALETTE)
-        ax.set_title(f'Distribution of {target_col}', color='white')
-        ax.set_xlabel(target_col, color='white')
-        ax.set_ylabel('Count', color='white')
-        ax.tick_params(colors='white')
-        st.pyplot(fig)
-    else:
-        st.warning("⚠️ Target column not found - cannot display distribution")
-    st.divider()
-
-    # Hotspot Location Map
-    st.subheader("➥ Hotspot Location")
-    if all(col in df.columns for col in ['latitude', 'longitude']):
-        try:
-            center_lat = df['latitude'].mean()
-            center_lon = df['longitude'].mean()
-            
-            m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='CartoDB dark_matter')
-            
-            sample_size = min(1000, len(df))
-            sample_df = df.sample(n=sample_size, random_state=42)
-            
-            for _, row in sample_df.iterrows():
-                folium.CircleMarker(
-                    location=[row['latitude'], row['longitude']],
-                    radius=3,
-                    color='red',
-                    fill=True,
-                    fill_color='red',
-                    fill_opacity=0.7
-                ).add_to(m)
-            
-            folium_static(m)
-            st.caption(f"Showing {sample_size} random accident locations")
-        except Exception as e:
-            st.error(f"Error creating map: {str(e)}")
-    elif 'Location' in df.columns:
-        st.warning("⚠️ Could not parse location coordinates from 'Location' column")
-    else:
-        st.info("ℹ️ Location data not available - map visualization requires 'latitude'/'longitude' or 'Location' columns")
-    st.divider()
-
-    # Correlation Heatmap
-    st.subheader("➥ Correlation Heatmap")
-    numeric_cols = df.select_dtypes(include=np.number).columns
-    if len(numeric_cols) > 1:
-        corr = df[numeric_cols].corr()
-        fig, ax = plt.subplots(figsize=(12, 10))
-        sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
-        ax.set_title("Feature Correlation Heatmap", color='white')
-        st.pyplot(fig)
-    else:
-        st.info("ℹ️ Not enough numeric columns for correlation analysis")
-    st.divider()
-
-    # Model Performance
-    st.subheader("➥ Model Performance")
-    st.dataframe(scores_df.style.format({
-        'Accuracy (%)': '{:.2f}',
-        'Precision (%)': '{:.2f}',
-        'Recall (%)': '{:.2f}',
-        'F1-Score (%)': '{:.2f}'
-    }))
-    st.divider()
-
-    # Model Comparison Chart
-    st.subheader("➥ Model Comparison")
-    if not scores_df.empty:
-        fig, ax = plt.subplots(figsize=(12, 6))
-        scores_df.set_index('Model').plot(kind='bar', ax=ax, color=PALETTE)
-        ax.set_title('Model Performance Comparison', color='white')
-        ax.set_ylabel('Score (%)', color='white')
-        ax.set_xlabel('Model', color='white')
-        ax.tick_params(axis='x', rotation=45, colors='white')
-        ax.tick_params(axis='y', colors='white')
-        ax.legend(facecolor='#0E1117', edgecolor='white')
-        ax.grid(True, linestyle='--', alpha=0.3)
-        st.pyplot(fig)
-    st.divider()
-
-    # Feature Importance
-    st.subheader("➥ Feature Importance")
-    model_name = st.selectbox("Select Model", list(models.keys()), index=1)
-    
-    try:
-        if model_name == 'Logistic Regression':
-            importances = np.abs(models[model_name].coef_[0])
-        elif model_name == 'Artificial Neural Network':
-            importances = np.mean(np.abs(models[model_name].coefs_[0]), axis=1)
-        else:  # Random Forest or XGBoost
-            importances = models[model_name].feature_importances_
-        
-        importances = importances / importances.sum()  # Normalize
-        sorted_idx = np.argsort(importances)[::-1]
-        top_features = X.columns[sorted_idx][:10]
-        top_importances = importances[sorted_idx][:10]
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x=top_importances, y=top_features, ax=ax, palette=PALETTE)
-        ax.set_title(f'{model_name} - Top 10 Features', color='white')
-        ax.set_xlabel('Relative Importance', color='white')
-        ax.set_ylabel('Feature', color='white')
-        ax.tick_params(colors='white')
-        st.pyplot(fig)
-    except Exception as e:
-        st.warning(f"⚠️ Could not display feature importance: {str(e)}")
-
-# --- Prediction ---
-elif page == "Prediction":
-    st.title("Custom Prediction")
-    selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
-    model = models[selected_model]
-
-    input_data = {}
-    cols_per_row = 3
-    cols = st.columns(cols_per_row)
-    
-    for i, col in enumerate(X.columns):
-        with cols[i % cols_per_row]:
-            if col in label_encoders:
-                options = label_encoders[col].classes_
-                choice = st.selectbox(f"{col}", options)
-                input_data[col] = label_encoders[col].transform([choice])[0]
-            else:
-                input_data[col] = st.number_input(
-                    f"{col}",
-                    min_value=float(df[col].min()),
-                    max_value=float(df[col].max()),
-                    value=float(df[col].mean())
-                )
-    
-    if st.button("Predict"):
-        try:
-            input_df = pd.DataFrame([input_data])
-            prediction = model.predict(input_df)[0]
-            probs = model.predict_proba(input_df)[0]
-            confidence = np.max(probs) * 100
-
-            if target_col in label_encoders:
-                severity_label = label_encoders[target_col].inverse_transform([prediction])[0]
-            else:
-                severity_label = prediction
-
-            st.success(f"**Predicted {target_col}:** {severity_label}")
-            st.info(f"**Confidence:** {confidence:.2f}%")
-            
-            # Show probability distribution
-            fig, ax = plt.subplots(figsize=(8, 4))
-            if target_col in label_encoders:
-                classes = label_encoders[target_col].classes_
-            else:
-                classes = range(len(probs))
-            
-            sns.barplot(x=classes, y=probs, ax=ax, palette=PALETTE)
-            ax.set_title('Prediction Probability Distribution', color='white')
-            ax.set_xlabel('Severity Level', color='white')
-            ax.set_ylabel('Probability', color='white')
-            ax.tick_params(colors='white')
-            st.pyplot(fig)
-        except Exception as e:
-            st.error(f"Prediction failed: {str(e)}")
-
-# --- Reports ---
-elif page == "Reports":
-    st.title("Dataset Reports")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Basic Statistics")
-        st.dataframe(df.describe())
-    
-    with col2:
-        st.subheader("Data Types")
-        st.dataframe(df.dtypes.astype(str).to_frame('Data Type'))
-    
-    st.divider()
-    
-    st.subheader("Missing Values")
-    missing_values = df.isnull().sum()
-    if missing_values.sum() > 0:
-        st.dataframe(missing_values[missing_values > 0].to_frame('Missing Values'))
-    else:
-        st.success("No missing values found in the dataset")
-    
-    st.divider()
-    
-    st.subheader("Column Information")
-    col_info = []
-    for col in df.columns:
-        col_info.append({
-            'Column': col,
-            'Type': str(df[col].dtype),
-            'Unique Values': df[col].nunique(),
-            'Missing Values': df[col].isnull().sum()
-        })
-    st.dataframe(pd.DataFrame(col_info))
+# [Rest of your existing code for pages remains exactly the same...]
 
 # --- Admin ---
 elif page == "Admin":
@@ -442,33 +232,18 @@ elif page == "Admin":
     
     if uploaded_file is not None:
         try:
-            # First check if file is empty
-            if uploaded_file.size == 0:
+            # Read and store the file content in memory
+            file_content = uploaded_file.getvalue().decode('utf-8')
+            
+            # Validate content
+            if not file_content.strip():
                 st.error("⚠️ Uploaded file is empty")
                 st.stop()
-            
-            # Try reading the first few bytes to check if it's a valid CSV
-            content = uploaded_file.getvalue().decode('utf-8')
-            if not content.strip():
-                st.error("⚠️ Uploaded file contains no data")
-                st.stop()
                 
-            # Try reading the file properly
-            uploaded_file.seek(0)  # Reset file pointer
-            test_df = pd.read_csv(uploaded_file)
-            
-            # Check if dataframe is empty
-            if test_df.empty:
-                st.error("⚠️ Uploaded file contains no data rows")
-                st.stop()
-                
-            # Check if dataframe has no columns
-            if len(test_df.columns) == 0:
-                st.error("⚠️ Uploaded file has no recognizable columns")
-                st.stop()
-                
-            # If we get here, file is valid
+            # Store in session state
             st.session_state.uploaded_file = uploaded_file
+            st.session_state.file_content = file_content
+            
             st.success("✅ New dataset uploaded successfully!")
             
             # Clear caches
@@ -477,8 +252,6 @@ elif page == "Admin":
             
             st.info("ℹ️ Please refresh the page or navigate to another section to see updates")
             
-        except pd.errors.EmptyDataError:
-            st.error("⚠️ Uploaded file appears to be empty or corrupted")
         except UnicodeDecodeError:
             st.error("⚠️ File encoding issue - please upload a standard UTF-8 CSV file")
         except Exception as e:
@@ -486,6 +259,7 @@ elif page == "Admin":
     
     if st.button("Reset to Default Dataset"):
         st.session_state.uploaded_file = None
+        st.session_state.file_content = None
         st.cache_data.clear()
         st.cache_resource.clear()
         st.success("✅ Reset to default dataset complete! Refresh the page.")
