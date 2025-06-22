@@ -6,6 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 import tempfile
+import folium
+from streamlit_folium import folium_static
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
