@@ -277,7 +277,7 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    # Improved location data handling
+    # Improved location data handling based on PDF example
     location_col = None
     for col in df.columns:
         if 'location' in col.lower():
@@ -286,22 +286,39 @@ elif page == "Data Analysis":
             
     if location_col and location_col in df.columns:
         try:
-            # Convert to string if not already
-            loc_series = df[location_col].astype(str)
-            
-            # Extract coordinates from strings like "(38.98765667, -76.987545)"
-            coord_df = loc_series.str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
-            coord_df.columns = ['latitude', 'longitude']
-            coord_df = coord_df.dropna()
-            coord_df['latitude'] = coord_df['latitude'].astype(float)
-            coord_df['longitude'] = coord_df['longitude'].astype(float)
+            # Method 1: Direct extraction from (lat, long) format
+            if df[location_col].astype(str).str.contains(r'\([-\d\.]+,\s*[-\d\.]+\)').any():
+                # Extract coordinates from strings like "(38.98765667, -76.987545)"
+                coord_df = df[location_col].str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
+                coord_df.columns = ['latitude', 'longitude']
+                coord_df = coord_df.dropna()
+                coord_df['latitude'] = coord_df['latitude'].astype(float)
+                coord_df['longitude'] = coord_df['longitude'].astype(float)
+            # Method 2: Alternative parsing if format differs
+            else:
+                # Remove parentheses and split on comma
+                loc_series = df[location_col].str.replace(r'[()]', '', regex=True)
+                coord_df = loc_series.str.split(',', expand=True)
+                coord_df.columns = ['latitude', 'longitude']
+                coord_df = coord_df.dropna()
+                coord_df['latitude'] = coord_df['latitude'].astype(float)
+                coord_df['longitude'] = coord_df['longitude'].astype(float)
             
             if not coord_df.empty:
                 st.map(coord_df)
+                
+                # Show basic stats
+                st.write("Location Data Summary:")
+                st.write(f"Total locations: {len(coord_df)}")
+                st.write(f"Northernmost point: {coord_df['latitude'].max():.6f}")
+                st.write(f"Southernmost point: {coord_df['latitude'].min():.6f}")
+                st.write(f"Easternmost point: {coord_df['longitude'].max():.6f}")
+                st.write(f"Westernmost point: {coord_df['longitude'].min():.6f}")
             else:
                 st.warning("No valid geographic coordinates found in location data.")
         except Exception as e:
             st.warning(f"Could not parse location data: {str(e)}")
+            st.write("Sample location data:", df[location_col].head().tolist())
     else:
         st.warning("No location column found in dataset.")
     st.divider()
