@@ -266,90 +266,120 @@ elif page == "Data Analysis":
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
+    # Section 1: Target Variable Distribution
     st.subheader("➥ Target Variable Distribution")
     if st.session_state.target_col in df.columns:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 6))
         sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
-        ax.set_title(f'Count of {st.session_state.target_col} Levels')
+        ax.set_title(f'Distribution of {st.session_state.target_col}', fontsize=14)
+        ax.set_xlabel('Severity Level')
+        ax.set_ylabel('Count')
         st.pyplot(fig)
+        
+        # Add value counts table
+        severity_counts = df[st.session_state.target_col].value_counts().sort_index()
+        st.write("Value Counts:")
+        st.dataframe(severity_counts)
     else:
         st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
-    st.subheader("➥ Hotspot Location")
-    # Improved location data handling based on PDF example
-    location_col = None
-    for col in df.columns:
-        if 'location' in col.lower():
-            location_col = col
-            break
-            
-    if location_col and location_col in df.columns:
+    # Section 2: Location Visualization
+    st.subheader("➥ Accident Hotspots")
+    location_col = 'Location'
+    
+    if location_col in df.columns:
         try:
-            # Method 1: Direct extraction from (lat, long) format
-            if df[location_col].astype(str).str.contains(r'\([-\d\.]+,\s*[-\d\.]+\)').any():
-                # Extract coordinates from strings like "(38.98765667, -76.987545)"
-                coord_df = df[location_col].str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
-                coord_df.columns = ['latitude', 'longitude']
-                coord_df = coord_df.dropna()
-                coord_df['latitude'] = coord_df['latitude'].astype(float)
-                coord_df['longitude'] = coord_df['longitude'].astype(float)
-            # Method 2: Alternative parsing if format differs
-            else:
-                # Remove parentheses and split on comma
-                loc_series = df[location_col].str.replace(r'[()]', '', regex=True)
-                coord_df = loc_series.str.split(',', expand=True)
-                coord_df.columns = ['latitude', 'longitude']
-                coord_df = coord_df.dropna()
-                coord_df['latitude'] = coord_df['latitude'].astype(float)
-                coord_df['longitude'] = coord_df['longitude'].astype(float)
+            # Convert to string and clean data
+            df['Location'] = df['Location'].astype(str)
+            valid_locations = df['Location'].str.contains(r'\([-\d\.]+,\s*[-\d\.]+\)', na=False)
+            valid_df = df[valid_locations].copy()
             
-            if not coord_df.empty:
-                st.map(coord_df)
+            if not valid_df.empty:
+                # Extract coordinates
+                coord_df = valid_df['Location'].str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
+                coord_df.columns = ['latitude', 'longitude']
+                coord_df = coord_df.dropna()
+                coord_df['latitude'] = coord_df['latitude'].astype(float)
+                coord_df['longitude'] = coord_df['longitude'].astype(float)
                 
-                # Show basic stats
-                st.write("Location Data Summary:")
-                st.write(f"Total locations: {len(coord_df)}")
-                st.write(f"Northernmost point: {coord_df['latitude'].max():.6f}")
-                st.write(f"Southernmost point: {coord_df['latitude'].min():.6f}")
-                st.write(f"Easternmost point: {coord_df['longitude'].max():.6f}")
-                st.write(f"Westernmost point: {coord_df['longitude'].min():.6f}")
+                if not coord_df.empty:
+                    # Show map
+                    st.map(coord_df)
+                    
+                    # Show stats
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Valid Locations", f"{len(coord_df)}/{len(df)}")
+                    with col2:
+                        st.metric("Invalid Locations", len(df) - len(valid_df))
+                    
+                    # Show sample of invalid locations if any exist
+                    if len(df) > len(valid_df):
+                        with st.expander("Show invalid location examples"):
+                            invalid_examples = df[~valid_df.index.isin(valid_df.index)]['Location'].unique()[:5]
+                            st.write(invalid_examples)
+                else:
+                    st.warning("No valid coordinates could be extracted from location strings.")
             else:
-                st.warning("No valid geographic coordinates found in location data.")
+                st.warning("No valid location format found in Location column.")
+                with st.expander("Show sample location data"):
+                    st.write(df['Location'].head(10).tolist())
         except Exception as e:
-            st.warning(f"Could not parse location data: {str(e)}")
-            st.write("Sample location data:", df[location_col].head().tolist())
+            st.error(f"Error processing location data: {str(e)}")
+            with st.expander("Debug details"):
+                st.write("First 10 location values:", df['Location'].head(10).tolist())
     else:
-        st.warning("No location column found in dataset.")
+        st.warning("Location column not found in dataset.")
     st.divider()
 
+    # Section 3: Correlation Analysis
     st.subheader("➥ Correlation Heatmap")
     try:
-        corr = df.select_dtypes(['number']).corr()
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr, cmap='coolwarm', annot=False, 
-                   center=0, linewidths=0.5, ax=ax)
-        ax.set_title("Correlation Heatmap")
-        st.pyplot(fig)
+        # Select only numeric columns
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        if len(numeric_cols) > 1:
+            corr = df[numeric_cols].corr()
+            fig, ax = plt.subplots(figsize=(12, 10))
+            sns.heatmap(corr, cmap='coolwarm', annot=False, 
+                       center=0, linewidths=0.5, ax=ax, vmin=-1, vmax=1)
+            ax.set_title("Feature Correlation Heatmap", fontsize=14)
+            st.pyplot(fig)
+            
+            # Show highest correlations
+            corr_matrix = corr.abs()
+            np.fill_diagonal(corr_matrix.values, 0)  # Ignore diagonal
+            top_corrs = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
+            st.write("Top Feature Correlations:")
+            st.dataframe(top_corrs.head(10))
+        else:
+            st.warning("Not enough numeric columns for correlation analysis.")
     except Exception as e:
         st.warning(f"Could not generate correlation heatmap: {str(e)}")
     st.divider()
 
-    st.subheader("➥ Model Performance")
+    # Section 4: Model Performance
+    st.subheader("➥ Model Performance Comparison")
     if not scores_df.empty:
-        st.table(scores_df.round(2))
+        # Metrics table
+        st.dataframe(scores_df.round(2).style.highlight_max(axis=0))
         
-        # Performance metrics comparison
+        # Interactive metric selection
+        selected_metric = st.selectbox("Select metric to compare", 
+                                     ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
+        
+        # Bar chart
         fig, ax = plt.subplots(figsize=(10, 6))
-        scores_df.set_index('Model').plot(kind='bar', ax=ax)
-        ax.set_title('Model Performance Comparison')
-        ax.set_ylabel('Score (%)')
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        sns.barplot(data=scores_df, x='Model', y=selected_metric, palette=PALETTE, ax=ax)
+        ax.set_title(f'Model Comparison - {selected_metric}', fontsize=14)
+        ax.set_ylabel(selected_metric)
+        ax.tick_params(axis='x', rotation=45)
         st.pyplot(fig)
     else:
         st.warning("No model performance data available.")
     st.divider()
 
+    # Section 5: Feature Importance
     st.subheader("➥ Feature Importance Analysis")
     if st.session_state.models:
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()))
@@ -357,6 +387,7 @@ elif page == "Data Analysis":
         try:
             model = st.session_state.models[model_name]
             
+            # Get importances based on model type
             if hasattr(model, 'feature_importances_'):
                 importances = model.feature_importances_
             elif hasattr(model, 'coef_'):
@@ -371,10 +402,17 @@ elif page == "Data Analysis":
                     'Importance': importances
                 }).sort_values('Importance', ascending=False).head(10)
                 
+                # Plot
                 fig, ax = plt.subplots(figsize=(10, 6))
-                sns.barplot(x='Importance', y='Feature', data=importance_df, palette=PALETTE, ax=ax)
-                ax.set_title(f'{model_name} Feature Importance')
+                sns.barplot(x='Importance', y='Feature', data=importance_df, 
+                           palette='viridis', ax=ax)
+                ax.set_title(f'{model_name} - Top 10 Features', fontsize=14)
+                ax.set_xlabel('Relative Importance')
                 st.pyplot(fig)
+                
+                # Data table
+                st.write("Feature Importance Scores:")
+                st.dataframe(importance_df.style.format({'Importance': '{:.4f}'}))
             else:
                 st.warning(f"Feature importance not available for {model_name}")
         except Exception as e:
