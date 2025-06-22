@@ -5,7 +5,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -15,9 +14,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
-
-# --- Global Variables ---
-df = X = y = X_train = X_test = y_train = y_test = label_encoders = models = scores_df = None
 
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
@@ -36,9 +32,12 @@ plt.rcParams['text.color'] = 'white'
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
- 
-This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. 
+Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers 
+enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
+
+This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful 
+data to improve road safety and management.
 """
 
 # --- Normalize Text Values ---
@@ -67,12 +66,10 @@ def normalize_categories(df):
             'Daylight': 'Daylight'
         },
     }
-
     for col, replacements in mappings.items():
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.title()
             df[col] = df[col].replace(replacements)
-
     return df
 
 # --- Load Dataset ---
@@ -91,7 +88,6 @@ def load_data(url=None):
     df.fillna(df.mode().iloc[0], inplace=True)
 
     df['Location_Original'] = df['Location']  # Preserve original for mapping
-
     df = normalize_categories(df)
 
     label_encoders = {}
@@ -111,9 +107,6 @@ def load_data(url=None):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
-
-# Initial load
-df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models ---
 @st.cache_resource
@@ -141,22 +134,54 @@ def train_models(X_train, y_train, X_test, y_test):
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
-models, scores_df = train_models(X_train, y_train, X_test, y_test)
+# --- Session State Management ---
+if 'data_loaded' not in st.session_state:
+    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
+    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+    st.session_state.update({
+        'df': df,
+        'X': X,
+        'y': y,
+        'X_train': X_train,
+        'X_test': X_test,
+        'y_train': y_train,
+        'y_test': y_test,
+        'label_encoders': label_encoders,
+        'models': models,
+        'scores_df': scores_df,
+        'data_loaded': True
+    })
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin", "Help"])
 
+# Helper function to get session state variables
+def get_state():
+    return (
+        st.session_state.df,
+        st.session_state.X,
+        st.session_state.y,
+        st.session_state.X_train,
+        st.session_state.X_test,
+        st.session_state.y_train,
+        st.session_state.y_test,
+        st.session_state.label_encoders,
+        st.session_state.models,
+        st.session_state.scores_df
+    )
+
 # --- Home ---
 if page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.write(PROJECT_OVERVIEW)
-
     st.subheader("Dataset Preview")
-    st.dataframe(df.copy().head())
+    st.dataframe(st.session_state.df.copy().head())
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
+    df, X, y, _, _, _, _, label_encoders, models, scores_df = get_state()
+    
     st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
@@ -233,6 +258,8 @@ elif page == "Data Analysis":
 
 # --- Prediction ---
 elif page == "Prediction":
+    df, X, y, _, _, _, _, label_encoders, models, _ = get_state()
+    
     st.title("Custom Prediction")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
@@ -277,6 +304,7 @@ elif page == "Prediction":
 
 # --- Reports ---
 elif page == "Reports":
+    df, _, _, _, _, _, _, _, _, _ = get_state()
     st.title("Generated Reports")
     st.write("### Dataset Summary")
     st.dataframe(df.describe())
@@ -303,15 +331,22 @@ elif page == "Admin":
                     # Reload data with the new file
                     new_df, new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test, new_label_encoders = load_data("uploaded_dataset.csv")
                     
-                    # Update global variables
-                    global df, X, y, X_train, X_test, y_train, y_test, label_encoders, models, scores_df
-                    df, X, y = new_df, new_X, new_y
-                    X_train, X_test = new_X_train, new_X_test
-                    y_train, y_test = new_y_train, new_y_test
-                    label_encoders = new_label_encoders
-                    
                     # Retrain models with new data
-                    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                    new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
+                    
+                    # Update session state
+                    st.session_state.update({
+                        'df': new_df,
+                        'X': new_X,
+                        'y': new_y,
+                        'X_train': new_X_train,
+                        'X_test': new_X_test,
+                        'y_train': new_y_train,
+                        'y_test': new_y_test,
+                        'label_encoders': new_label_encoders,
+                        'models': new_models,
+                        'scores_df': new_scores_df
+                    })
                     
                     st.success("System updated successfully with new data!")
                     st.balloons()
