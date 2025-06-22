@@ -286,8 +286,11 @@ elif page == "Data Analysis":
             
     if location_col and location_col in df.columns:
         try:
+            # Convert to string if not already
+            loc_series = df[location_col].astype(str)
+            
             # Extract coordinates from strings like "(38.98765667, -76.987545)"
-            coord_df = df[location_col].str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
+            coord_df = loc_series.str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
             coord_df.columns = ['latitude', 'longitude']
             coord_df = coord_df.dropna()
             coord_df['latitude'] = coord_df['latitude'].astype(float)
@@ -295,20 +298,6 @@ elif page == "Data Analysis":
             
             if not coord_df.empty:
                 st.map(coord_df)
-                
-                # Show density heatmap option
-                if st.checkbox("Show Density Heatmap"):
-                    fig, ax = plt.subplots()
-                    sns.kdeplot(
-                        x=coord_df['longitude'],
-                        y=coord_df['latitude'],
-                        cmap='Reds',
-                        fill=True,
-                        alpha=0.6,
-                        ax=ax
-                    )
-                    ax.set_title('Accident Density Heatmap')
-                    st.pyplot(fig)
             else:
                 st.warning("No valid geographic coordinates found in location data.")
         except Exception as e:
@@ -320,44 +309,13 @@ elif page == "Data Analysis":
     st.subheader("➥ Correlation Heatmap")
     try:
         corr = df.select_dtypes(['number']).corr()
-        fig, ax = plt.subplots(figsize=(12, 10))
+        fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(corr, cmap='coolwarm', annot=False, 
                    center=0, linewidths=0.5, ax=ax)
         ax.set_title("Correlation Heatmap")
         st.pyplot(fig)
     except Exception as e:
         st.warning(f"Could not generate correlation heatmap: {str(e)}")
-    st.divider()
-
-    st.subheader("➥ Time Analysis")
-    # Check for datetime columns
-    datetime_cols = [col for col in df.columns if 'date' in col.lower() or 'time' in col.lower()]
-    
-    if datetime_cols:
-        selected_time_col = st.selectbox("Select time column", datetime_cols)
-        try:
-            df[selected_time_col] = pd.to_datetime(df[selected_time_col])
-            
-            # Time distribution
-            fig, ax = plt.subplots(figsize=(10, 6))
-            df[selected_time_col].dt.hour.plot.hist(bins=24, ax=ax)
-            ax.set_title('Accidents by Hour of Day')
-            ax.set_xlabel('Hour')
-            ax.set_ylabel('Count')
-            st.pyplot(fig)
-            
-            # Weekly pattern
-            fig, ax = plt.subplots(figsize=(10, 6))
-            df[selected_time_col].dt.dayofweek.plot.hist(bins=7, ax=ax)
-            ax.set_title('Accidents by Day of Week')
-            ax.set_xlabel('Day (0=Monday)')
-            ax.set_ylabel('Count')
-            st.pyplot(fig)
-            
-        except Exception as e:
-            st.warning(f"Could not analyze time data: {str(e)}")
-    else:
-        st.warning("No datetime columns found for time analysis.")
     st.divider()
 
     st.subheader("➥ Model Performance")
@@ -406,33 +364,6 @@ elif page == "Data Analysis":
             st.warning(f"Could not display feature importance: {str(e)}")
     else:
         st.warning("No trained models available.")
-    st.divider()
-
-    st.subheader("➥ Custom Analysis")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        x_axis = st.selectbox("X-axis", df.columns)
-    with col2:
-        y_axis = st.selectbox("Y-axis", df.columns, index=1)
-    
-    plot_type = st.selectbox("Plot type", ["Scatter", "Box", "Violin", "Bar"])
-    
-    try:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        if plot_type == "Scatter":
-            sns.scatterplot(data=df, x=x_axis, y=y_axis, ax=ax)
-        elif plot_type == "Box":
-            sns.boxplot(data=df, x=x_axis, y=y_axis, ax=ax)
-        elif plot_type == "Violin":
-            sns.violinplot(data=df, x=x_axis, y=y_axis, ax=ax)
-        elif plot_type == "Bar":
-            sns.barplot(data=df, x=x_axis, y=y_axis, ax=ax)
-        
-        ax.set_title(f'{plot_type} Plot of {y_axis} vs {x_axis}')
-        st.pyplot(fig)
-    except Exception as e:
-        st.warning(f"Could not create plot: {str(e)}")
 
 # --- Prediction ---
 elif page == "Prediction":
