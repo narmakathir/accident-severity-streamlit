@@ -112,25 +112,20 @@ def load_data(uploaded_file=None):
 
     # Handle target column - flexible naming
     target_col = None
-    possible_targets = ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target']
+    possible_targets = ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target', 'Accident_Severity']
     for possible_target in possible_targets:
         if possible_target in df.columns:
             target_col = possible_target
             break
     
     if target_col is None:
-        available_cols = "\n".join(f"- {col}" for col in df.columns)
-        st.error(f"""
-        ⚠️ Could not find target column in the dataset. 
-        
-        Expected one of: {", ".join(possible_targets)}
-        
-        Available columns in your dataset:
-        {available_cols}
-        
-        Please upload a dataset with one of the expected target columns.
-        """)
-        st.stop()
+        st.warning("⚠️ Could not find standard target column. Using first numeric column as target.")
+        numeric_cols = df.select_dtypes(include=np.number).columns
+        if len(numeric_cols) > 0:
+            target_col = numeric_cols[0]
+        else:
+            st.error("No suitable target column found in the dataset")
+            st.stop()
 
     # Feature scaling
     numeric_cols = df.select_dtypes(include=np.number).columns.difference([target_col])
@@ -149,7 +144,7 @@ def load_data(uploaded_file=None):
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    return df, X, y, X_train, X_test, y_train, y_test, label_encoders
+    return df, X, y, X_train, X_test, y_train, y_test, label_encoders, target_col
 
 # Initialize session state for uploaded file
 if 'uploaded_file' not in st.session_state:
@@ -183,7 +178,7 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # Load data based on uploaded file or default
 try:
-    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data(st.session_state.uploaded_file)
+    df, X, y, X_train, X_test, y_train, y_test, label_encoders, target_col = load_data(st.session_state.uploaded_file)
     models, scores_df = train_models(X_train, y_train, X_test, y_test)
 except Exception as e:
     st.error(f"Error loading data: {str(e)}")
@@ -205,10 +200,8 @@ if page == "Home":
     st.write(f"Total records: {len(df)}")
     st.write(f"Number of features: {len(df.columns)}")
     
-    target_col = [col for col in ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target'] 
-                 if col in df.columns][0]
     if target_col in df.columns:
-        st.write("Target variable distribution:")
+        st.write(f"Target variable ('{target_col}') distribution:")
         st.write(df[target_col].value_counts())
 
 # --- Data Analysis ---
@@ -217,13 +210,9 @@ elif page == "Data Analysis":
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
-    # Injury Severity Distribution
-    target_col = [col for col in ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target'] 
-                 if col in df.columns]
-    
-    if target_col:
-        target_col = target_col[0]
-        st.subheader(f"➥ {target_col} Distribution")
+    # Target Distribution
+    st.subheader(f"➥ Target Variable Distribution")
+    if target_col in df.columns:
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.countplot(x=target_col, data=df, ax=ax, palette=PALETTE)
         ax.set_title(f'Distribution of {target_col}', color='white')
@@ -263,10 +252,8 @@ elif page == "Data Analysis":
             st.error(f"Error creating map: {str(e)}")
     elif 'Location' in df.columns:
         st.warning("⚠️ Could not parse location coordinates from 'Location' column")
-        st.info("Please ensure location data is in format '(latitude, longitude)'")
     else:
-        st.warning("⚠️ Location data not available - cannot display map visualization")
-        st.info("Required columns: 'latitude' and 'longitude' or 'Location' with coordinate data")
+        st.info("ℹ️ Location data not available - map visualization requires 'latitude'/'longitude' or 'Location' columns")
     st.divider()
 
     # Correlation Heatmap
@@ -279,7 +266,7 @@ elif page == "Data Analysis":
         ax.set_title("Feature Correlation Heatmap", color='white')
         st.pyplot(fig)
     else:
-        st.warning("⚠️ Not enough numeric columns for correlation analysis")
+        st.info("ℹ️ Not enough numeric columns for correlation analysis")
     st.divider()
 
     # Model Performance
@@ -332,7 +319,7 @@ elif page == "Data Analysis":
         ax.tick_params(colors='white')
         st.pyplot(fig)
     except Exception as e:
-        st.error(f"Could not display feature importance: {str(e)}")
+        st.warning(f"⚠️ Could not display feature importance: {str(e)}")
 
 # --- Prediction ---
 elif page == "Prediction":
@@ -365,8 +352,6 @@ elif page == "Prediction":
             probs = model.predict_proba(input_df)[0]
             confidence = np.max(probs) * 100
 
-            target_col = [col for col in ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target'] 
-                         if col in label_encoders][0]
             if target_col in label_encoders:
                 severity_label = label_encoders[target_col].inverse_transform([prediction])[0]
             else:
@@ -439,20 +424,8 @@ elif page == "Admin":
             # Validate the file by trying to read it
             test_df = pd.read_csv(uploaded_file)
             
-            # Check for at least one possible target column
-            possible_targets = ['Injury Severity', 'Severity', 'Injury', 'Accident Severity', 'Target']
-            has_target = any(col in test_df.columns for col in possible_targets)
-            
-            if not has_target:
-                available_cols = "\n".join(f"- {col}" for col in test_df.columns)
-                st.error(f"""
-                ⚠️ Uploaded file is missing required target column. 
-                
-                Expected one of: {", ".join(possible_targets)}
-                
-                Available columns in your dataset:
-                {available_cols}
-                """)
+            if len(test_df.columns) == 0:
+                st.error("Uploaded file appears to be empty")
             else:
                 st.session_state.uploaded_file = uploaded_file
                 st.success("New dataset uploaded successfully!")
