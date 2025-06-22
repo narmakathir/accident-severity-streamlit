@@ -6,8 +6,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 import tempfile
-import folium
-from streamlit_folium import folium_static
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -258,14 +256,14 @@ if page == "Home":
     st.write(f"Target variable: {st.session_state.target_col}")
     st.write(f"Features: {', '.join(st.session_state.X.columns)}")
 
-# --- Data Analysis Page ---
+# --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
     # Get current data from session state
-    df = st.session_state.current_df.copy()
+    df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
     # Section 1: Target Variable Distribution
@@ -277,6 +275,13 @@ elif page == "Data Analysis":
         ax.set_xlabel('Severity Level')
         ax.set_ylabel('Count')
         st.pyplot(fig)
+        
+        # Add value counts table
+        severity_counts = df[st.session_state.target_col].value_counts().sort_index()
+        st.write("Value Counts:")
+        st.dataframe(severity_counts)
+    else:
+        st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
     # Section 2: Location Visualization with Folium
@@ -292,19 +297,24 @@ elif page == "Data Analysis":
         except Exception as e:
             st.warning(f"Error parsing location data: {str(e)}")
 
-    if 'latitude' in df.columns and 'longitude' in df.columns and not df.empty:
-        # Create Folium map
-        m = folium.Map(
-            location=[df['latitude'].mean(), df['longitude'].mean()],
-            zoom_start=11,
-            tiles='CartoDB dark_matter'
-        )
+    if 'latitude' in df.columns and 'longitude' in df.columns:
+        # Show location stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Locations", len(df))
+        with col2:
+            st.metric("Average Latitude", f"{df['latitude'].mean():.4f}")
+        with col3:
+            st.metric("Average Longitude", f"{df['longitude'].mean():.4f}")
+
+        # Create Folium map with dark tiles
+        m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
+                      zoom_start=11, 
+                      tiles='CartoDB dark_matter')
         
-        # Add markers (sampling if large dataset)
+        # Add points to the map (sample if too many points)
         sample_size = min(1000, len(df))
-        sample_df = df.sample(sample_size) if len(df) > 1000 else df
-        
-        for _, row in sample_df.iterrows():
+        for idx, row in df.sample(sample_size).iterrows():
             folium.CircleMarker(
                 location=[row['latitude'], row['longitude']],
                 radius=3,
@@ -314,15 +324,19 @@ elif page == "Data Analysis":
                 fill_opacity=0.7
             ).add_to(m)
         
-        # Display map
         folium_static(m, width=1000, height=600)
         
-        # Show stats
-        st.write(f"Displaying {len(sample_df)} of {len(df)} locations")
+        # Show data summary
+        with st.expander("Location Data Details"):
+            st.write(f"Showing {sample_size} random locations out of {len(df)}")
+            st.write("Coordinate range:")
+            st.write(f"Latitude: {df['latitude'].min():.6f} to {df['latitude'].max():.6f}")
+            st.write(f"Longitude: {df['longitude'].min():.6f} to {df['longitude'].max():.6f}")
     else:
         st.warning("Geographic coordinates not available in the dataset.")
     st.divider()
- 
+
+    # Section 3: Correlation Analysis
     st.subheader("➥ Correlation Heatmap")
     try:
         # Select only numeric columns
@@ -347,7 +361,7 @@ elif page == "Data Analysis":
         st.warning(f"Could not generate correlation heatmap: {str(e)}")
     st.divider()
 
-    # Continue with the rest of your visualizations...
+    # Section 4: Model Performance
     st.subheader("➥ Model Performance Comparison")
     if not scores_df.empty:
         # Metrics table
@@ -367,6 +381,47 @@ elif page == "Data Analysis":
     else:
         st.warning("No model performance data available.")
     st.divider()
+
+    # Section 5: Feature Importance
+    st.subheader("➥ Feature Importance Analysis")
+    if st.session_state.models:
+        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()))
+        
+        try:
+            model = st.session_state.models[model_name]
+            
+            # Get importances based on model type
+            if hasattr(model, 'feature_importances_'):
+                importances = model.feature_importances_
+            elif hasattr(model, 'coef_'):
+                importances = np.abs(model.coef_[0])
+            else:
+                importances = None
+                
+            if importances is not None:
+                features = st.session_state.X.columns
+                importance_df = pd.DataFrame({
+                    'Feature': features,
+                    'Importance': importances
+                }).sort_values('Importance', ascending=False).head(10)
+                
+                # Plot
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sns.barplot(x='Importance', y='Feature', data=importance_df, 
+                           palette='viridis', ax=ax)
+                ax.set_title(f'{model_name} - Top 10 Features', fontsize=14)
+                ax.set_xlabel('Relative Importance')
+                st.pyplot(fig)
+                
+                # Data table
+                st.write("Feature Importance Scores:")
+                st.dataframe(importance_df.style.format({'Importance': '{:.4f}'}))
+            else:
+                st.warning(f"Feature importance not available for {model_name}")
+        except Exception as e:
+            st.warning(f"Could not display feature importance: {str(e)}")
+    else:
+        st.warning("No trained models available.")
 
 # --- Prediction ---
 elif page == "Prediction":
