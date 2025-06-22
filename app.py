@@ -258,7 +258,7 @@ if page == "Home":
     st.write(f"Target variable: {st.session_state.target_col}")
     st.write(f"Features: {', '.join(st.session_state.X.columns)}")
 
-# --- Data Analysis ---
+# --- Data Analysis Page ---
 elif page == "Data Analysis":
     st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
@@ -277,13 +277,6 @@ elif page == "Data Analysis":
         ax.set_xlabel('Severity Level')
         ax.set_ylabel('Count')
         st.pyplot(fig)
-        
-        # Add value counts table
-        severity_counts = df[st.session_state.target_col].value_counts().sort_index()
-        st.write("Value Counts:")
-        st.dataframe(severity_counts)
-    else:
-        st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
     # Section 2: Location Visualization with Folium
@@ -299,68 +292,37 @@ elif page == "Data Analysis":
         except Exception as e:
             st.warning(f"Error parsing location data: {str(e)}")
 
-    if 'latitude' in df.columns and 'longitude' in df.columns:
-        # Show stats
-        st.write(f"Displaying {len(df)} accident locations")
+    if 'latitude' in df.columns and 'longitude' in df.columns and not df.empty:
+        # Create Folium map
+        m = folium.Map(
+            location=[df['latitude'].mean(), df['longitude'].mean()],
+            zoom_start=11,
+            tiles='CartoDB dark_matter'
+        )
         
-        # Create Folium map with dark tiles
-        m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
-                      zoom_start=11, 
-                      tiles='CartoDB dark_matter')
+        # Add markers (sampling if large dataset)
+        sample_size = min(1000, len(df))
+        sample_df = df.sample(sample_size) if len(df) > 1000 else df
         
-        # Add points to the map
-        sample_size = min(1000, len(df))  # Limit points for better performance
-        for idx, row in df.sample(sample_size).iterrows():
+        for _, row in sample_df.iterrows():
             folium.CircleMarker(
                 location=[row['latitude'], row['longitude']],
                 radius=3,
                 color='red',
                 fill=True,
                 fill_color='red',
-                fill_opacity=0.7,
-                tooltip=f"Severity: {row.get(st.session_state.target_col, 'N/A')}"
+                fill_opacity=0.7
             ).add_to(m)
         
         # Display map
         folium_static(m, width=1000, height=600)
         
-        # Show map controls
-        with st.expander("Map Controls"):
-            col1, col2 = st.columns(2)
-            with col1:
-                heatmap = st.checkbox("Show Heatmap Overlay", value=False)
-            with col2:
-                cluster = st.checkbox("Cluster Markers", value=False)
-            
-            if heatmap or cluster:
-                m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
-                              zoom_start=11, 
-                              tiles='CartoDB dark_matter')
-                
-                if heatmap:
-                    from folium.plugins import HeatMap
-                    heat_data = [[row['latitude'], row['longitude']] for _, row in df.iterrows()]
-                    HeatMap(heat_data, radius=15).add_to(m)
-                
-                if cluster:
-                    from folium.plugins import MarkerCluster
-                    marker_cluster = MarkerCluster().add_to(m)
-                    for idx, row in df.sample(sample_size).iterrows():
-                        folium.CircleMarker(
-                            location=[row['latitude'], row['longitude']],
-                            radius=3,
-                            color='red',
-                            fill=True,
-                            fill_color='red',
-                            fill_opacity=0.7
-                        ).add_to(marker_cluster)
-                
-                folium_static(m, width=1000, height=600)
+        # Show stats
+        st.write(f"Displaying {len(sample_df)} of {len(df)} locations")
     else:
         st.warning("Geographic coordinates not available in the dataset.")
     st.divider()
-
-    # Rest of your Data Analysis page remains the same...
+ 
     st.subheader("➥ Correlation Heatmap")
     try:
         # Select only numeric columns
