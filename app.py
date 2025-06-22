@@ -277,96 +277,162 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
+    # Improved location data handling
+    location_col = None
+    for col in df.columns:
+        if 'location' in col.lower():
+            location_col = col
+            break
+            
+    if location_col and location_col in df.columns:
         try:
-            coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
-            if coords.shape[1] == 2:
-                coords.columns = ['latitude', 'longitude']
-                coords = coords.astype(float).dropna()
-                if not coords.empty:
-                    st.map(coords)
-                else:
-                    st.warning("No valid geographic coordinates found in location data.")
+            # Extract coordinates from strings like "(38.98765667, -76.987545)"
+            coord_df = df[location_col].str.extract(r'\(([-\d\.]+),\s*([-\d\.]+)\)')
+            coord_df.columns = ['latitude', 'longitude']
+            coord_df = coord_df.dropna()
+            coord_df['latitude'] = coord_df['latitude'].astype(float)
+            coord_df['longitude'] = coord_df['longitude'].astype(float)
+            
+            if not coord_df.empty:
+                st.map(coord_df)
+                
+                # Show density heatmap option
+                if st.checkbox("Show Density Heatmap"):
+                    fig, ax = plt.subplots()
+                    sns.kdeplot(
+                        x=coord_df['longitude'],
+                        y=coord_df['latitude'],
+                        cmap='Reds',
+                        fill=True,
+                        alpha=0.6,
+                        ax=ax
+                    )
+                    ax.set_title('Accident Density Heatmap')
+                    st.pyplot(fig)
             else:
-                st.warning("Location data not in expected (lat, long) format.")
-        except:
-            st.warning("Could not parse location data.")
+                st.warning("No valid geographic coordinates found in location data.")
+        except Exception as e:
+            st.warning(f"Could not parse location data: {str(e)}")
     else:
-        # Try to find latitude/longitude columns
-        lat_col = next((col for col in df.columns if 'lat' in col.lower()), None)
-        long_col = next((col for col in df.columns if 'long' in col.lower()), None)
-        
-        if lat_col and long_col:
-            try:
-                coords = df[[lat_col, long_col]].copy()
-                coords.columns = ['latitude', 'longitude']
-                coords = coords.dropna()
-                if not coords.empty:
-                    st.map(coords)
-                else:
-                    st.warning("No valid geographic coordinates found.")
-            except:
-                st.warning("Could not use latitude/longitude columns for mapping.")
-        else:
-            st.warning("No location data found in dataset.")
+        st.warning("No location column found in dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     try:
         corr = df.select_dtypes(['number']).corr()
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
+        fig, ax = plt.subplots(figsize=(12, 10))
+        sns.heatmap(corr, cmap='coolwarm', annot=False, 
+                   center=0, linewidths=0.5, ax=ax)
         ax.set_title("Correlation Heatmap")
         st.pyplot(fig)
-    except:
-        st.warning("Could not generate correlation heatmap.")
+    except Exception as e:
+        st.warning(f"Could not generate correlation heatmap: {str(e)}")
     st.divider()
 
-    if not st.session_state.scores_df.empty:
-        st.subheader("➥ Model Performance")
-        st.table(st.session_state.scores_df.round(2))
-        st.divider()
+    st.subheader("➥ Time Analysis")
+    # Check for datetime columns
+    datetime_cols = [col for col in df.columns if 'date' in col.lower() or 'time' in col.lower()]
+    
+    if datetime_cols:
+        selected_time_col = st.selectbox("Select time column", datetime_cols)
+        try:
+            df[selected_time_col] = pd.to_datetime(df[selected_time_col])
+            
+            # Time distribution
+            fig, ax = plt.subplots(figsize=(10, 6))
+            df[selected_time_col].dt.hour.plot.hist(bins=24, ax=ax)
+            ax.set_title('Accidents by Hour of Day')
+            ax.set_xlabel('Hour')
+            ax.set_ylabel('Count')
+            st.pyplot(fig)
+            
+            # Weekly pattern
+            fig, ax = plt.subplots(figsize=(10, 6))
+            df[selected_time_col].dt.dayofweek.plot.hist(bins=7, ax=ax)
+            ax.set_title('Accidents by Day of Week')
+            ax.set_xlabel('Day (0=Monday)')
+            ax.set_ylabel('Count')
+            st.pyplot(fig)
+            
+        except Exception as e:
+            st.warning(f"Could not analyze time data: {str(e)}")
+    else:
+        st.warning("No datetime columns found for time analysis.")
+    st.divider()
 
-        st.subheader("➥ Model Comparison Bar Chart")
-        performance_df = st.session_state.scores_df.set_index('Model')
-        fig, ax = plt.subplots()
-        performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
-        ax.set_title('Model Comparison')
-        ax.set_ylabel('Score (%)')
-        ax.grid(True, linestyle='--', alpha=0.6)
-        st.pyplot(fig)
-        st.divider()
-
-        st.subheader("➥ Model-Specific Feature Importances")
-        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
+    st.subheader("➥ Model Performance")
+    if not scores_df.empty:
+        st.table(scores_df.round(2))
         
-        if model_name in st.session_state.models:
+        # Performance metrics comparison
+        fig, ax = plt.subplots(figsize=(10, 6))
+        scores_df.set_index('Model').plot(kind='bar', ax=ax)
+        ax.set_title('Model Performance Comparison')
+        ax.set_ylabel('Score (%)')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        st.pyplot(fig)
+    else:
+        st.warning("No model performance data available.")
+    st.divider()
+
+    st.subheader("➥ Feature Importance Analysis")
+    if st.session_state.models:
+        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()))
+        
+        try:
             model = st.session_state.models[model_name]
             
-            try:
-                if hasattr(model, 'feature_importances_'):
-                    importances = model.feature_importances_
-                elif hasattr(model, 'coef_'):
-                    importances = np.abs(model.coef_[0])
-                elif hasattr(model, 'coefs_'):
-                    importances = np.mean(np.abs(model.coefs_[0]), axis=1)
-                else:
-                    raise AttributeError("Model doesn't have feature importance attributes")
+            if hasattr(model, 'feature_importances_'):
+                importances = model.feature_importances_
+            elif hasattr(model, 'coef_'):
+                importances = np.abs(model.coef_[0])
+            else:
+                importances = None
                 
-                importances_vals = importances / importances.sum()
-                sorted_idx = np.argsort(importances_vals)[::-1]
+            if importances is not None:
+                features = st.session_state.X.columns
+                importance_df = pd.DataFrame({
+                    'Feature': features,
+                    'Importance': importances
+                }).sort_values('Importance', ascending=False).head(10)
                 
-                # Ensure we don't try to access more features than available
-                n_features = min(10, len(st.session_state.X.columns))
-                top_features = st.session_state.X.columns[sorted_idx][:n_features]
-                top_vals = importances_vals[sorted_idx][:n_features]
-
-                fig, ax = plt.subplots()
-                sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
-                ax.set_title(f'{model_name} Top {n_features} Features')
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sns.barplot(x='Importance', y='Feature', data=importance_df, palette=PALETTE, ax=ax)
+                ax.set_title(f'{model_name} Feature Importance')
                 st.pyplot(fig)
-            except Exception as e:
-                st.warning(f"Could not display feature importances: {str(e)}")
+            else:
+                st.warning(f"Feature importance not available for {model_name}")
+        except Exception as e:
+            st.warning(f"Could not display feature importance: {str(e)}")
+    else:
+        st.warning("No trained models available.")
+    st.divider()
+
+    st.subheader("➥ Custom Analysis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        x_axis = st.selectbox("X-axis", df.columns)
+    with col2:
+        y_axis = st.selectbox("Y-axis", df.columns, index=1)
+    
+    plot_type = st.selectbox("Plot type", ["Scatter", "Box", "Violin", "Bar"])
+    
+    try:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        if plot_type == "Scatter":
+            sns.scatterplot(data=df, x=x_axis, y=y_axis, ax=ax)
+        elif plot_type == "Box":
+            sns.boxplot(data=df, x=x_axis, y=y_axis, ax=ax)
+        elif plot_type == "Violin":
+            sns.violinplot(data=df, x=x_axis, y=y_axis, ax=ax)
+        elif plot_type == "Bar":
+            sns.barplot(data=df, x=x_axis, y=y_axis, ax=ax)
+        
+        ax.set_title(f'{plot_type} Plot of {y_axis} vs {x_axis}')
+        st.pyplot(fig)
+    except Exception as e:
+        st.warning(f"Could not create plot: {str(e)}")
 
 # --- Prediction ---
 elif page == "Prediction":
