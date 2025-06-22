@@ -268,6 +268,7 @@ elif page == "Prediction":
                     float(df[col].min()), 
                     float(df[col].max()), 
                     float(df[col].mean())
+                )
     
     if st.button("Predict"):
         input_df = pd.DataFrame([input_data])
