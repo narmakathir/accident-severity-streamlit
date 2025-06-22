@@ -42,6 +42,8 @@ if 'target_col' not in st.session_state:
     st.session_state.target_col = 'Injury Severity'
 if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
+if 'admin_authenticated' not in st.session_state:
+    st.session_state.admin_authenticated = False
 
 # --- Normalize Text Values ---
 def normalize_categories(df, custom_mappings=None):
@@ -169,7 +171,7 @@ def train_models(X_train, y_train, X_test, y_test):
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
 
-    scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
+    scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'))
     return trained_models, scores_df
 
 # --- Initialize with Default Data ---
@@ -228,20 +230,29 @@ def handle_dataset_upload(uploaded_file):
     except Exception as e:
         st.error(f"Error processing uploaded file: {str(e)}")
 
+# --- Password Protection ---
+def check_admin_password():
+    if not st.session_state.admin_authenticated:
+        password = st.sidebar.text_input("Enter Admin Password:", type="password")
+        if password:
+            if password == "admin1":
+                st.session_state.admin_authenticated = True
+                st.sidebar.success("Admin access granted")
+            else:
+                st.sidebar.error("Incorrect password")
+        return False
+    return True
+
 # --- Side Menu ---
 st.sidebar.title("Navigation")
-if 'admin_mode' not in st.session_state:
-    st.session_state.admin_mode = False
 
-if st.sidebar.checkbox("Admin Mode"):
-    st.session_state.admin_mode = True
+# Show admin page in sidebar only if authenticated
+if st.session_state.admin_authenticated or check_admin_password():
+    pages = ["Home", "Data Analysis", "Prediction", "Reports", "Admin"]
 else:
-    st.session_state.admin_mode = False
+    pages = ["Home", "Data Analysis", "Prediction", "Reports"]
 
-if st.session_state.admin_mode:
-    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin"])
-else:
-    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports"])
+page = st.sidebar.radio("Go to", pages)
 
 # --- Home ---
 if page == "Home":
@@ -427,7 +438,7 @@ elif page == "Reports":
     st.dataframe(col_info)
 
 # --- Admin Page ---
-elif page == "Admin" and st.session_state.admin_mode:
+elif page == "Admin" and st.session_state.admin_authenticated:
     st.title("Admin Dashboard")
     st.warning("You are in admin mode. Changes here will affect all users.")
     
@@ -465,3 +476,8 @@ elif page == "Admin" and st.session_state.admin_mode:
             st.session_state.target_col = target_col
             
             st.success("System reset to default dataset!")
+    
+    # Logout button
+    if st.button("Logout from Admin"):
+        st.session_state.admin_authenticated = False
+        st.experimental_rerun()
