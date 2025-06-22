@@ -5,3 +5,5 @@ matplotlib
 seaborn
 scikit-learn
 xgboost
+folium>=0.14.0
+streamlit-folium>=0.10.0
