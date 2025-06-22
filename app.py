@@ -139,19 +139,6 @@ def load_data(uploaded_file=None):
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
 
-# Initialize session state
-if 'df' not in st.session_state:
-    try:
-        df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
-        st.session_state.update({
-            'df': df, 'X': X, 'y': y,
-            'X_train': X_train, 'X_test': X_test,
-            'y_train': y_train, 'y_test': y_test,
-            'label_encoders': label_encoders
-        })
-    except Exception as e:
-        st.error(f"Initial data loading failed: {str(e)}")
-
 # --- Train Models ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
@@ -198,22 +185,64 @@ def train_models(X_train, y_train, X_test, y_test):
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy', 'Precision', 'Recall', 'F1-Score'])
     return trained_models, scores_df, importances_dict
 
-if 'models' not in st.session_state and 'X_train' in st.session_state:
-    try:
-        models, scores_df, importances_dict = train_models(
-            st.session_state.X_train, st.session_state.y_train,
-            st.session_state.X_test, st.session_state.y_test
-        )
-        st.session_state.update({
-            'models': models,
-            'scores_df': scores_df,
-            'importances_dict': importances_dict
-        })
-    except Exception as e:
-        st.error(f"Model training failed: {str(e)}")
+# --- Visualization Functions ---
+def plot_severity_distribution(df):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.countplot(x='Injury Severity', data=df, ax=ax, palette=DARK_PALETTE)
+    ax.set_title('Distribution of Injury Severity', pad=20, color='white')
+    ax.set_xlabel('Injury Severity Level', labelpad=10, color='white')
+    ax.set_ylabel('Number of Accidents', labelpad=10, color='white')
+    ax.tick_params(axis='both', colors='white')
+    st.pyplot(fig)
 
-# --- Admin Upload ---
-def admin_upload():
+def plot_correlation_heatmap(df):
+    corr_cols = [
+        'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
+        'Traffic Control', 'Weather', 'Surface Condition', 'Light',
+        'Speed Limit', 'Driver Substance Abuse', 'Injury Severity'
+    ]
+    corr_df = df[[c for c in corr_cols if c in df.columns]]
+    
+    fig, ax = plt.subplots(figsize=(12, 10))
+    sns.heatmap(corr_df.corr(), cmap=COLOR_MAP, annot=False, ax=ax)
+    ax.set_title("Feature Correlation Heatmap", pad=20, color='white')
+    st.pyplot(fig)
+
+def plot_model_comparison(scores_df):
+    fig, ax = plt.subplots(figsize=(12, 6))
+    scores_df.set_index('Model').plot(
+        kind='bar', ax=ax, color=DARK_PALETTE
+    )
+    ax.set_title('Model Performance Comparison', pad=20, color='white')
+    ax.set_ylabel('Score (%)', labelpad=10, color='white')
+    ax.set_xlabel('Model', labelpad=10, color='white')
+    ax.tick_params(axis='x', rotation=45, colors='white')
+    ax.tick_params(axis='y', colors='white')
+    ax.legend(
+        bbox_to_anchor=(1.05, 1),
+        loc='upper left',
+        facecolor='#0E1117',
+        edgecolor='white',
+        labelcolor='white'
+    )
+    st.pyplot(fig)
+
+def plot_feature_importance(model_name, importances_dict, feature_names):
+    importance = importances_dict[model_name]
+    sorted_idx = np.argsort(importance)[::-1][:10]
+    top_features = feature_names[sorted_idx]
+    top_importance = importance[sorted_idx]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(x=top_importance, y=top_features, ax=ax, palette=DARK_PALETTE)
+    ax.set_title(f'{model_name} - Feature Importance', pad=20, color='white')
+    ax.set_xlabel('Importance Score', labelpad=10, color='white')
+    ax.set_ylabel('Feature', labelpad=10, color='white')
+    ax.tick_params(colors='white')
+    st.pyplot(fig)
+
+# --- Admin Upload Page ---
+def admin_upload_page():
     st.title("Admin Dataset Upload")
     st.warning("This section is for administrators only.")
     
@@ -256,75 +285,8 @@ def admin_upload():
             st.error(f"Error processing file: {str(e)}")
             st.error("Please ensure the file contains all required columns including 'Injury Severity'")
 
-# --- Visualization Functions ---
-def plot_severity_distribution():
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.countplot(x='Injury Severity', data=st.session_state.df, ax=ax, palette=DARK_PALETTE)
-    ax.set_title('Distribution of Injury Severity', pad=20, color='white')
-    ax.set_xlabel('Injury Severity Level', labelpad=10, color='white')
-    ax.set_ylabel('Number of Accidents', labelpad=10, color='white')
-    ax.tick_params(axis='both', colors='white')
-    st.pyplot(fig)
-
-def plot_correlation_heatmap():
-    corr_cols = [
-        'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
-        'Traffic Control', 'Weather', 'Surface Condition', 'Light',
-        'Speed Limit', 'Driver Substance Abuse', 'Injury Severity'
-    ]
-    corr_df = st.session_state.df[[c for c in corr_cols if c in st.session_state.df.columns]]
-    
-    fig, ax = plt.subplots(figsize=(12, 10))
-    sns.heatmap(corr_df.corr(), cmap=COLOR_MAP, annot=False, ax=ax)
-    ax.set_title("Feature Correlation Heatmap", pad=20, color='white')
-    st.pyplot(fig)
-
-def plot_model_comparison():
-    fig, ax = plt.subplots(figsize=(12, 6))
-    st.session_state.scores_df.set_index('Model').plot(
-        kind='bar', ax=ax, color=DARK_PALETTE
-    )
-    ax.set_title('Model Performance Comparison', pad=20, color='white')
-    ax.set_ylabel('Score (%)', labelpad=10, color='white')
-    ax.set_xlabel('Model', labelpad=10, color='white')
-    ax.tick_params(axis='x', rotation=45, colors='white')
-    ax.tick_params(axis='y', colors='white')
-    ax.legend(
-        bbox_to_anchor=(1.05, 1),
-        loc='upper left',
-        facecolor='#0E1117',
-        edgecolor='white',
-        labelcolor='white'
-    )
-    st.pyplot(fig)
-
-def plot_feature_importance(model_name):
-    importance = st.session_state.importances_dict[model_name]
-    sorted_idx = np.argsort(importance)[::-1][:10]
-    top_features = st.session_state.X.columns[sorted_idx]
-    top_importance = importance[sorted_idx]
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=top_importance, y=top_features, ax=ax, palette=DARK_PALETTE)
-    ax.set_title(f'{model_name} - Feature Importance', pad=20, color='white')
-    ax.set_xlabel('Importance Score', labelpad=10, color='white')
-    ax.set_ylabel('Feature', labelpad=10, color='white')
-    ax.tick_params(colors='white')
-    st.pyplot(fig)
-
-# --- Side Menu ---
-st.sidebar.title("Navigation")
-pages = ["Home", "Data Analysis", "Prediction", "Reports", "Admin Upload"]
-page = st.sidebar.radio("Go to", pages)
-
-# --- Page Routing ---
-if page == "Home":
-    st.title("Traffic Accident Severity Prediction")
-    st.write(PROJECT_OVERVIEW)
-    st.subheader("Dataset Preview")
-    st.dataframe(st.session_state.df.head() if 'df' in st.session_state else pd.DataFrame())
-
-elif page == "Data Analysis":
+# --- Data Analysis Page ---
+def data_analysis_page():
     st.title("Data Analysis & Insights")
     
     if 'df' not in st.session_state:
@@ -332,7 +294,7 @@ elif page == "Data Analysis":
         return
     
     st.subheader("Injury Severity Distribution")
-    plot_severity_distribution()
+    plot_severity_distribution(st.session_state.df)
     st.divider()
     
     st.subheader("Accident Hotspots")
@@ -365,7 +327,7 @@ elif page == "Data Analysis":
     st.divider()
     
     st.subheader("Feature Correlations")
-    plot_correlation_heatmap()
+    plot_correlation_heatmap(st.session_state.df)
     st.divider()
     
     if 'models' in st.session_state:
@@ -374,7 +336,7 @@ elif page == "Data Analysis":
         st.divider()
         
         st.subheader("Model Comparison")
-        plot_model_comparison()
+        plot_model_comparison(st.session_state.scores_df)
         st.divider()
         
         st.subheader("Feature Importance")
@@ -383,11 +345,16 @@ elif page == "Data Analysis":
             list(st.session_state.models.keys()),
             index=1
         )
-        plot_feature_importance(model_name)
+        plot_feature_importance(
+            model_name,
+            st.session_state.importances_dict,
+            st.session_state.X.columns
+        )
     else:
         st.warning("Models not trained. Please check data loading.")
 
-elif page == "Prediction":
+# --- Prediction Page ---
+def prediction_page():
     st.title("Custom Prediction")
     
     if 'models' not in st.session_state:
@@ -432,7 +399,8 @@ elif page == "Prediction":
         st.success(f"**Predicted Injury Severity:** {severity}")
         st.info(f"**Confidence:** {confidence:.2f}%")
 
-elif page == "Reports":
+# --- Reports Page ---
+def reports_page():
     st.title("Dataset Reports")
     if 'df' in st.session_state:
         st.subheader("Statistical Summary")
@@ -443,5 +411,49 @@ elif page == "Reports":
     else:
         st.error("Data not loaded")
 
-elif page == "Admin Upload":
-    admin_upload()
+# --- Home Page ---
+def home_page():
+    st.title("Traffic Accident Severity Prediction")
+    st.write(PROJECT_OVERVIEW)
+    st.subheader("Dataset Preview")
+    st.dataframe(st.session_state.df.head() if 'df' in st.session_state else pd.DataFrame())
+
+# --- Main App ---
+def main():
+    # Initialize session state if not already done
+    if 'df' not in st.session_state:
+        try:
+            df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
+            st.session_state.update({
+                'df': df, 'X': X, 'y': y,
+                'X_train': X_train, 'X_test': X_test,
+                'y_train': y_train, 'y_test': y_test,
+                'label_encoders': label_encoders
+            })
+            
+            # Train models if data is loaded
+            models, scores_df, importances_dict = train_models(X_train, y_train, X_test, y_test)
+            st.session_state.update({
+                'models': models,
+                'scores_df': scores_df,
+                'importances_dict': importances_dict
+            })
+        except Exception as e:
+            st.error(f"Initial data loading failed: {str(e)}")
+
+    # Sidebar navigation
+    st.sidebar.title("Navigation")
+    pages = {
+        "Home": home_page,
+        "Data Analysis": data_analysis_page,
+        "Prediction": prediction_page,
+        "Reports": reports_page,
+        "Admin Upload": admin_upload_page
+    }
+    page = st.sidebar.radio("Go to", list(pages.keys()))
+    
+    # Display the selected page
+    pages[page]()
+
+if __name__ == "__main__":
+    main()
