@@ -16,6 +16,9 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
+# --- Global Variables ---
+df = X = y = X_train = X_test = y_train = y_test = label_encoders = models = scores_df = None
+
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 sns.set_style("darkgrid")
@@ -63,7 +66,6 @@ def normalize_categories(df):
             'Dark - Street Lights On': 'Dark',
             'Daylight': 'Daylight'
         },
-        # Add more column mappings as needed
     }
 
     for col, replacements in mappings.items():
@@ -294,9 +296,19 @@ elif page == "Admin":
             
             if st.button("Update System with New Data"):
                 with st.spinner("Processing new data and retraining models..."):
+                    # Clear cache to force reload
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    
                     # Reload data with the new file
+                    new_df, new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test, new_label_encoders = load_data("uploaded_dataset.csv")
+                    
+                    # Update global variables
                     global df, X, y, X_train, X_test, y_train, y_test, label_encoders, models, scores_df
-                    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data("uploaded_dataset.csv")
+                    df, X, y = new_df, new_X, new_y
+                    X_train, X_test = new_X_train, new_X_test
+                    y_train, y_test = new_y_train, new_y_test
+                    label_encoders = new_label_encoders
                     
                     # Retrain models with new data
                     models, scores_df = train_models(X_train, y_train, X_test, y_test)
