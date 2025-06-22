@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -17,8 +18,18 @@ warnings.filterwarnings('ignore')
 
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-sns.set_style("whitegrid")
+sns.set_style("darkgrid")
+plt.style.use('dark_background')
 PALETTE = sns.color_palette("Set2")
+
+# Set dark background for all visualizations
+plt.rcParams['figure.facecolor'] = '#0E1117'
+plt.rcParams['axes.facecolor'] = '#0E1117'
+plt.rcParams['axes.edgecolor'] = 'white'
+plt.rcParams['axes.labelcolor'] = 'white'
+plt.rcParams['xtick.color'] = 'white'
+plt.rcParams['ytick.color'] = 'white'
+plt.rcParams['text.color'] = 'white'
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
@@ -64,9 +75,15 @@ def normalize_categories(df):
 
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
-def load_data():
-    url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
-    df = pd.read_csv(url)
+def load_data(url=None):
+    if url is None:
+        url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
+    
+    if os.path.exists(url):
+        df = pd.read_csv(url)
+    else:
+        df = pd.read_csv(url)
+        
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
@@ -93,11 +110,12 @@ def load_data():
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
 
+# Initial load
 df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
 
 # --- Train Models ---
 @st.cache_resource
-def train_models():
+def train_models(X_train, y_train, X_test, y_test):
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
@@ -121,11 +139,11 @@ def train_models():
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
-models, scores_df = train_models()
+models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Help"])
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin", "Help"])
 
 # --- Home ---
 if page == "Home":
@@ -144,7 +162,9 @@ elif page == "Data Analysis":
     st.subheader("➥ Injury Severity Distribution")
     fig, ax = plt.subplots()
     sns.countplot(x='Injury Severity', data=df, ax=ax, palette=PALETTE)
-    ax.set_title('Count of Injury Levels')
+    ax.set_title('Count of Injury Levels', color='white')
+    ax.set_xlabel('Injury Severity', color='white')
+    ax.set_ylabel('Count', color='white')
     st.pyplot(fig)
     st.divider()
 
@@ -156,16 +176,17 @@ elif page == "Data Analysis":
         if not coords.empty:
             st.map(coords)
         else:
-            st.warning("No geographic data available.")
+            st.warning("No geographic coordinates found in location data. Please check the format.")
     else:
-        st.warning("Location data not found.")
+        st.warning("Location data not found in the dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
-    fig, ax = plt.subplots()
-    sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
-    ax.set_title("Correlation Heatmap")
+    fig, ax = plt.subplots(figsize=(12, 10))
+    sns.heatmap(corr, cmap='coolwarm', annot=True, fmt=".2f", ax=ax, 
+                annot_kws={"size": 8}, cbar_kws={"label": "Correlation Coefficient"})
+    ax.set_title("Correlation Heatmap", pad=20)
     st.pyplot(fig)
     st.divider()
 
@@ -175,11 +196,13 @@ elif page == "Data Analysis":
 
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 6))
     performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
-    ax.set_title('Model Comparison')
+    ax.set_title('Model Comparison', pad=20)
     ax.set_ylabel('Score (%)')
+    ax.set_xlabel('Model')
     ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     st.pyplot(fig)
     st.divider()
 
@@ -199,9 +222,11 @@ elif page == "Data Analysis":
     top_features = X.columns[sorted_idx][:10]
     top_vals = importances_vals[sorted_idx][:10]
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 6))
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
-    ax.set_title(f'{model_name} Top 10 Features')
+    ax.set_title(f'{model_name} Top 10 Features', pad=20)
+    ax.set_xlabel('Importance Score', color='white')
+    ax.set_ylabel('Features', color='white')
     st.pyplot(fig)
 
 # --- Prediction ---
@@ -211,32 +236,76 @@ elif page == "Prediction":
     model = models[selected_model]
 
     input_data = {}
-    for col in X.columns:
-        if col in label_encoders:
-            options = sorted(label_encoders[col].classes_)
-            choice = st.selectbox(f"{col}", options)
-            input_data[col] = label_encoders[col].transform([choice])[0]
+    cols = st.columns(2)
+    for i, col in enumerate(X.columns):
+        with cols[i % 2]:
+            if col in label_encoders:
+                options = sorted(label_encoders[col].classes_)
+                choice = st.selectbox(f"{col}", options)
+                input_data[col] = label_encoders[col].transform([choice])[0]
+            else:
+                input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+
+    if st.button("Predict Severity"):
+        input_df = pd.DataFrame([input_data])
+        prediction = model.predict(input_df)[0]
+        probs = model.predict_proba(input_df)[0]
+        confidence = np.max(probs) * 100
+
+        if 'Injury Severity' in label_encoders:
+            severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0]
         else:
-            input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+            severity_label = prediction
 
-    input_df = pd.DataFrame([input_data])
-    prediction = model.predict(input_df)[0]
-    probs = model.predict_proba(input_df)[0]
-    confidence = np.max(probs) * 100
+        st.success(f"**Predicted Injury Severity:** {severity_label}")
+        st.info(f"**Confidence:** {confidence:.2f}%")
 
-    if 'Injury Severity' in label_encoders:
-        severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0]
-    else:
-        severity_label = prediction
-
-    st.success(f"**Predicted Injury Severity:** {severity_label}")
-    st.info(f"**Confidence:** {confidence:.2f}%")
+        # Show probability distribution
+        fig, ax = plt.subplots()
+        if 'Injury Severity' in label_encoders:
+            classes = label_encoders['Injury Severity'].classes_
+        else:
+            classes = range(len(probs))
+            
+        sns.barplot(x=classes, y=probs, ax=ax, palette=PALETTE)
+        ax.set_title('Probability Distribution')
+        ax.set_xlabel('Severity Level')
+        ax.set_ylabel('Probability')
+        st.pyplot(fig)
 
 # --- Reports ---
 elif page == "Reports":
-    st.title("Update later Generated Reports")
+    st.title("Generated Reports")
     st.write("### Dataset Summary")
     st.dataframe(df.describe())
+
+# --- Admin Page ---
+elif page == "Admin":
+    st.title("Admin Dashboard")
+    st.subheader("Upload New Dataset")
+    
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    
+    if uploaded_file is not None:
+        try:
+            # Save the uploaded file
+            with open("uploaded_dataset.csv", "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            if st.button("Update System with New Data"):
+                with st.spinner("Processing new data and retraining models..."):
+                    # Reload data with the new file
+                    global df, X, y, X_train, X_test, y_train, y_test, label_encoders, models, scores_df
+                    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data("uploaded_dataset.csv")
+                    
+                    # Retrain models with new data
+                    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                    
+                    st.success("System updated successfully with new data!")
+                    st.balloons()
+                    
+        except Exception as e:
+            st.error(f"Error processing file: {str(e)}")
 
 # --- Help ---
 elif page == "Help":
@@ -247,4 +316,9 @@ elif page == "Help":
     - **Data Analysis:** Visualizations and model performance.
     - **Prediction:** Try predictions by selecting input values.
     - **Reports:** View dataset summary statistics.
+    - **Admin:** Upload new datasets to update the system.
+    
+    **Dark Mode:** All visualizations now use dark mode for better readability.
+    
+    **Geographic Data:** If location data isn't displaying, ensure your dataset contains coordinates in (latitude, longitude) format.
     """)
