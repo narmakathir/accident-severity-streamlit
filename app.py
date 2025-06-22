@@ -4,7 +4,9 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import os
+import folium
+from streamlit_folium import folium_static
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -17,27 +19,16 @@ warnings.filterwarnings('ignore')
 
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-sns.set_style("darkgrid")
+# Set dark theme for all visualizations
 plt.style.use('dark_background')
-PALETTE = sns.color_palette("Set2")
-
-# Set dark background for all visualizations
-plt.rcParams['figure.facecolor'] = '#0E1117'
-plt.rcParams['axes.facecolor'] = '#0E1117'
-plt.rcParams['axes.edgecolor'] = 'white'
-plt.rcParams['axes.labelcolor'] = 'white'
-plt.rcParams['xtick.color'] = 'white'
-plt.rcParams['ytick.color'] = 'white'
-plt.rcParams['text.color'] = 'white'
+sns.set_style("darkgrid")
+PALETTE = sns.color_palette("husl")
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. 
-Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers 
-enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
-
-This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful 
-data to improve road safety and management.
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
+ 
+This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
 
 # --- Normalize Text Values ---
@@ -65,29 +56,40 @@ def normalize_categories(df):
             'Dark - Street Lights On': 'Dark',
             'Daylight': 'Daylight'
         },
+        # Add more column mappings as needed
     }
+
     for col, replacements in mappings.items():
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.title()
             df[col] = df[col].replace(replacements)
+
     return df
 
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
-def load_data(url=None):
-    if url is None:
+def load_data(uploaded_file=None):
+    if uploaded_file is None:
         url = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
-    
-    if os.path.exists(url):
         df = pd.read_csv(url)
     else:
-        df = pd.read_csv(url)
-        
+        df = pd.read_csv(uploaded_file)
+    
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    df['Location_Original'] = df['Location']  # Preserve original for mapping
+    # Extract coordinates from Location if available
+    if 'Location' in df.columns:
+        try:
+            coords = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
+            if not coords.empty:
+                df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
+                df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
+                df.dropna(subset=['latitude', 'longitude'], inplace=True)
+        except:
+            pass
+
     df = normalize_categories(df)
 
     label_encoders = {}
@@ -102,11 +104,15 @@ def load_data(url=None):
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
-    X = df.drop([target_col, 'Location'], axis=1)
+    X = df.drop([target_col, 'Location'], axis=1) if 'Location' in df.columns else df.drop([target_col], axis=1)
     y = df[target_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     return df, X, y, X_train, X_test, y_train, y_test, label_encoders
+
+# Initialize session state for uploaded file
+if 'uploaded_file' not in st.session_state:
+    st.session_state.uploaded_file = None
 
 # --- Train Models ---
 @st.cache_resource
@@ -134,86 +140,68 @@ def train_models(X_train, y_train, X_test, y_test):
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
-# --- Session State Management ---
-if 'data_loaded' not in st.session_state:
-    df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data()
-    models, scores_df = train_models(X_train, y_train, X_test, y_test)
-    st.session_state.update({
-        'df': df,
-        'X': X,
-        'y': y,
-        'X_train': X_train,
-        'X_test': X_test,
-        'y_train': y_train,
-        'y_test': y_test,
-        'label_encoders': label_encoders,
-        'models': models,
-        'scores_df': scores_df,
-        'data_loaded': True
-    })
+# Load data based on uploaded file or default
+df, X, y, X_train, X_test, y_train, y_test, label_encoders = load_data(st.session_state.uploaded_file)
+models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
 # --- Side Menu ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin", "Help"])
-
-# Helper function to get session state variables
-def get_state():
-    return (
-        st.session_state.df,
-        st.session_state.X,
-        st.session_state.y,
-        st.session_state.X_train,
-        st.session_state.X_test,
-        st.session_state.y_train,
-        st.session_state.y_test,
-        st.session_state.label_encoders,
-        st.session_state.models,
-        st.session_state.scores_df
-    )
+page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin"])
 
 # --- Home ---
 if page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.write(PROJECT_OVERVIEW)
+
     st.subheader("Dataset Preview")
-    st.dataframe(st.session_state.df.copy().head())
+    st.dataframe(df.copy().head())
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
-    df, X, y, _, _, _, _, label_encoders, models, scores_df = get_state()
-    
     st.title("Data Analysis & Insights")
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
     st.subheader("➥ Injury Severity Distribution")
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 6))
     sns.countplot(x='Injury Severity', data=df, ax=ax, palette=PALETTE)
     ax.set_title('Count of Injury Levels', color='white')
     ax.set_xlabel('Injury Severity', color='white')
     ax.set_ylabel('Count', color='white')
+    ax.tick_params(colors='white')
     st.pyplot(fig)
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
-        coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
-        coords.columns = ['latitude', 'longitude']
-        coords = coords.astype(float).dropna()
-        if not coords.empty:
-            st.map(coords)
-        else:
-            st.warning("No geographic coordinates found in location data. Please check the format.")
+    if 'latitude' in df.columns and 'longitude' in df.columns:
+        center_lat = df['latitude'].mean()
+        center_lon = df['longitude'].mean()
+        
+        # Create Folium map with dark tiles
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='CartoDB dark_matter')
+        
+        # Add points to the map
+        sample_df = df.sample(n=min(1000, len(df)), random_state=42)
+        for _, row in sample_df.iterrows():
+            folium.CircleMarker(
+                location=[row['latitude'], row['longitude']],
+                radius=3,
+                color='red',
+                fill=True,
+                fill_color='red',
+                fill_opacity=0.9
+            ).add_to(m)
+        
+        folium_static(m)
     else:
-        st.warning("Location data not found in the dataset.")
+        st.warning("Geographic coordinates not found in the dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     corr = df.select_dtypes(['number']).corr()
     fig, ax = plt.subplots(figsize=(12, 10))
-    sns.heatmap(corr, cmap='coolwarm', annot=True, fmt=".2f", ax=ax, 
-                annot_kws={"size": 8}, cbar_kws={"label": "Correlation Coefficient"})
-    ax.set_title("Correlation Heatmap", pad=20)
+    sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
+    ax.set_title("Correlation Heatmap", color='white')
     st.pyplot(fig)
     st.divider()
 
@@ -224,12 +212,13 @@ elif page == "Data Analysis":
     st.subheader("➥ Model Comparison Bar Chart")
     performance_df = scores_df.set_index('Model')
     fig, ax = plt.subplots(figsize=(10, 6))
-    performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
-    ax.set_title('Model Comparison', pad=20)
-    ax.set_ylabel('Score (%)')
-    ax.set_xlabel('Model')
+    performance_df.plot(kind='bar', ax=ax, color=PALETTE)
+    ax.set_title('Model Comparison', color='white')
+    ax.set_ylabel('Score (%)', color='white')
+    ax.set_xlabel('Model', color='white')
+    ax.tick_params(colors='white')
+    ax.legend(title='Metrics', title_fontsize='12', fontsize='10', facecolor='black', edgecolor='white')
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     st.pyplot(fig)
     st.divider()
 
@@ -251,31 +240,36 @@ elif page == "Data Analysis":
 
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
-    ax.set_title(f'{model_name} Top 10 Features', pad=20)
-    ax.set_xlabel('Importance Score', color='white')
-    ax.set_ylabel('Features', color='white')
+    ax.set_title(f'{model_name} Top 10 Features', color='white')
+    ax.set_xlabel('Importance', color='white')
+    ax.set_ylabel('Feature', color='white')
+    ax.tick_params(colors='white')
     st.pyplot(fig)
 
 # --- Prediction ---
 elif page == "Prediction":
-    df, X, y, _, _, _, _, label_encoders, models, _ = get_state()
-    
     st.title("Custom Prediction")
     selected_model = st.selectbox("Choose Model for Prediction", list(models.keys()))
     model = models[selected_model]
 
     input_data = {}
-    cols = st.columns(2)
+    cols_per_row = 3
+    cols = st.columns(cols_per_row)
+    
     for i, col in enumerate(X.columns):
-        with cols[i % 2]:
+        with cols[i % cols_per_row]:
             if col in label_encoders:
                 options = sorted(label_encoders[col].classes_)
                 choice = st.selectbox(f"{col}", options)
                 input_data[col] = label_encoders[col].transform([choice])[0]
             else:
-                input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
-
-    if st.button("Predict Severity"):
+                input_data[col] = st.number_input(
+                    f"{col}", 
+                    float(df[col].min()), 
+                    float(df[col].max()), 
+                    float(df[col].mean())
+    
+    if st.button("Predict"):
         input_df = pd.DataFrame([input_data])
         prediction = model.predict(input_df)[0]
         probs = model.predict_proba(input_df)[0]
@@ -289,83 +283,33 @@ elif page == "Prediction":
         st.success(f"**Predicted Injury Severity:** {severity_label}")
         st.info(f"**Confidence:** {confidence:.2f}%")
 
-        # Show probability distribution
-        fig, ax = plt.subplots()
-        if 'Injury Severity' in label_encoders:
-            classes = label_encoders['Injury Severity'].classes_
-        else:
-            classes = range(len(probs))
-            
-        sns.barplot(x=classes, y=probs, ax=ax, palette=PALETTE)
-        ax.set_title('Probability Distribution')
-        ax.set_xlabel('Severity Level')
-        ax.set_ylabel('Probability')
-        st.pyplot(fig)
-
 # --- Reports ---
 elif page == "Reports":
-    df, _, _, _, _, _, _, _, _, _ = get_state()
     st.title("Generated Reports")
     st.write("### Dataset Summary")
     st.dataframe(df.describe())
-
-# --- Admin Page ---
-elif page == "Admin":
-    st.title("Admin Dashboard")
-    st.subheader("Upload New Dataset")
     
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    st.write("### Missing Values Report")
+    missing_values = df.isnull().sum()
+    st.dataframe(missing_values[missing_values > 0].to_frame(name="Missing Values"))
+    
+    st.write("### Data Types")
+    st.dataframe(df.dtypes.to_frame(name="Data Type"))
+
+# --- Admin ---
+elif page == "Admin":
+    st.title("Admin Panel")
+    st.warning("This section is for administrators only.")
+    
+    uploaded_file = st.file_uploader("Upload new dataset (CSV)", type="csv")
     
     if uploaded_file is not None:
-        try:
-            # Save the uploaded file
-            with open("uploaded_dataset.csv", "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            
-            if st.button("Update System with New Data"):
-                with st.spinner("Processing new data and retraining models..."):
-                    # Clear cache to force reload
-                    st.cache_data.clear()
-                    st.cache_resource.clear()
-                    
-                    # Reload data with the new file
-                    new_df, new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test, new_label_encoders = load_data("uploaded_dataset.csv")
-                    
-                    # Retrain models with new data
-                    new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
-                    
-                    # Update session state
-                    st.session_state.update({
-                        'df': new_df,
-                        'X': new_X,
-                        'y': new_y,
-                        'X_train': new_X_train,
-                        'X_test': new_X_test,
-                        'y_train': new_y_train,
-                        'y_test': new_y_test,
-                        'label_encoders': new_label_encoders,
-                        'models': new_models,
-                        'scores_df': new_scores_df
-                    })
-                    
-                    st.success("System updated successfully with new data!")
-                    st.balloons()
-                    
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-
-# --- Help ---
-elif page == "Help":
-    st.title("User Manual")
-    st.write("""
-    **Instructions:**
-    - **Home:** Overview and dataset preview.
-    - **Data Analysis:** Visualizations and model performance.
-    - **Prediction:** Try predictions by selecting input values.
-    - **Reports:** View dataset summary statistics.
-    - **Admin:** Upload new datasets to update the system.
-    
-    **Dark Mode:** All visualizations now use dark mode for better readability.
-    
-    **Geographic Data:** If location data isn't displaying, ensure your dataset contains coordinates in (latitude, longitude) format.
-    """)
+        st.session_state.uploaded_file = uploaded_file
+        st.success("New dataset uploaded successfully!")
+        st.info("Please refresh the page or navigate to another section to see updates.")
+        
+        if st.button("Clear Cache and Reload Data"):
+            # Clear all caches
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.rerun()
