@@ -279,7 +279,7 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-if 'Location' in df.columns:
+    if 'Location' in df.columns:
     try:
         # Convert to string and clean the data
         df['Location'] = df['Location'].astype(str).str.strip()
