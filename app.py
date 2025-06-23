@@ -279,56 +279,60 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
-        try:
-            # Extract coordinates from the format (38.98765667, -76.987545)
-            coords = df['Location_Original'].str.extract(r'\(([-\d.]+),\s*([-\d.]+)\)')
-            coords.columns = ['latitude', 'longitude']
-            coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
-            coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
-            coords = coords.dropna()
-            
-            if not coords.empty:
-                # Create Folium map with dark tiles
-                m = folium.Map(location=[coords['latitude'].mean(), coords['longitude'].mean()], 
-                              zoom_start=11, 
-                              tiles='CartoDB dark_matter')
-                
-                # Add points to the map - sample up to 1000 points for performance
-                for idx, row in coords.sample(min(1000, len(coords))).iterrows():
-                    folium.CircleMarker(
-                        location=[row['latitude'], row['longitude']],
-                        radius=3,
-                        color='red',
-                        fill=True,
-                        fill_color='red',
-                        fill_opacity=0.7
-                    ).add_to(m)
-                
-                folium_static(m, width=1000, height=600)
-            else:
-                st.warning("No valid geographic coordinates found after processing.")
-        except Exception as e:
-            st.warning(f"Could not process location data: {str(e)}")
-    else:
-        # Try to find separate latitude/longitude columns
-        lat_col = next((col for col in df.columns if 'lat' in col.lower()), None)
-        long_col = next((col for col in df.columns if 'long' in col.lower()), None)
+if 'Location' in df.columns:
+    try:
+        # Convert to string and clean the data
+        df['Location'] = df['Location'].astype(str).str.strip()
         
-        if lat_col and long_col:
-            try:
-                coords = df[[lat_col, long_col]].copy()
-                coords.columns = ['latitude', 'longitude']
-                coords = coords.dropna()
-                if not coords.empty:
-                    st.map(coords)
-                else:
-                    st.warning("Latitude/Longitude columns exist but contain no valid data.")
-            except Exception as e:
-                st.warning(f"Could not use latitude/longitude columns: {str(e)}")
+        # Extract coordinates using precise regex pattern
+        coords = df['Location'].str.extract(r'\(([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)\)')
+        coords.columns = ['latitude', 'longitude']
+        
+        # Convert to numeric and drop invalid entries
+        coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
+        coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
+        coords = coords.dropna()
+        
+        if not coords.empty:
+            # Create Folium map
+            m = folium.Map(
+                location=[coords['latitude'].mean(), coords['longitude'].mean()],
+                zoom_start=11,
+                tiles='CartoDB dark_matter'
+            )
+            
+            # Add markers (sampling if too many points)
+            sample_size = min(1000, len(coords))
+            for idx, row in coords.sample(sample_size).iterrows():
+                folium.CircleMarker(
+                    location=[row['latitude'], row['longitude']],
+                    radius=5,
+                    color='red',
+                    fill=True,
+                    fill_color='red',
+                    fill_opacity=0.7,
+                    popup=f"Lat: {row['latitude']:.6f}, Long: {row['longitude']:.6f}"
+                ).add_to(m)
+            
+            # Display the map
+            folium_static(m, width=1000, height=600)
+            
+            # Show success message with stats
+            st.success(f"Mapped {len(coords)} locations successfully!")
         else:
-            st.warning("No location data found in dataset.")
-    st.divider()
+            st.warning("No valid coordinates found in Location column.")
+            
+    except Exception as e:
+        st.error(f"Error processing location data: {str(e)}")
+        # Debug view
+        with st.expander("Show raw location data for debugging"):
+            st.write("First 10 location values:")
+            st.write(df['Location'].head(10))
+            st.write("First 10 extracted coordinates:")
+            st.write(coords.head(10))
+else:
+    st.warning("No 'Location' column found in the dataset.")
+st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     try:
