@@ -72,7 +72,15 @@ def load_data():
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    df['Location_Original'] = df['Location']  # Preserve original for mapping
+    # Extract coordinates from Location column
+    if 'Location' in df.columns:
+        try:
+            coords = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
+            df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
+            df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
+            df.dropna(subset=['latitude', 'longitude'], inplace=True)
+        except:
+            pass
 
     df = normalize_categories(df)
 
@@ -88,7 +96,7 @@ def load_data():
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
-    X = df.drop([target_col, 'Location'], axis=1)
+    X = df.drop([target_col, 'Location'], axis=1) if 'Location' in df.columns else df.drop([target_col], axis=1)
     y = df[target_col]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -150,44 +158,26 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location_Original' in df.columns:
-        try:
-            # Extract coordinates from Location column
-            coords = df['Location_Original'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
-            df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
-            df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
-            df.dropna(subset=['latitude', 'longitude'], inplace=True)
-            
-            if not df.empty:
-                # Create Folium map with dark tiles
-                m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
-                              zoom_start=11, 
-                              tiles='CartoDB dark_matter')
-                
-                # Add points to the map
-                for idx, row in df.sample(min(1000, len(df))).iterrows():
-                    folium.CircleMarker(
-                        location=[row['latitude'], row['longitude']],
-                        radius=3,
-                        color='red',
-                        fill=True,
-                        fill_color='red',
-                        fill_opacity=0.7
-                    ).add_to(m)
-                
-                folium_static(m, width=1000, height=600)
-            else:
-                st.warning("No valid geographic data available after processing.")
-        except Exception as e:
-            st.warning(f"Could not create map visualization: {str(e)}")
-            # Fallback to simple map if Folium fails
-            coords = df['Location_Original'].astype(str).str.extract(r'\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)')
-            coords.columns = ['latitude', 'longitude']
-            coords = coords.astype(float).dropna()
-            if not coords.empty:
-                st.map(coords)
+    if 'latitude' in df.columns and 'longitude' in df.columns:
+        # Create Folium map with dark tiles
+        m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
+                      zoom_start=11, 
+                      tiles='CartoDB dark_matter')
+        
+        # Add points to the map
+        for idx, row in df.sample(min(1000, len(df))).iterrows():
+            folium.CircleMarker(
+                location=[row['latitude'], row['longitude']],
+                radius=3,
+                color='red',
+                fill=True,
+                fill_color='red',
+                fill_opacity=0.7
+            ).add_to(m)
+        
+        folium_static(m, width=1000, height=600)
     else:
-        st.warning("Location data not found.")
+        st.warning("Geographic coordinates not available in the dataset.")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
@@ -240,54 +230,30 @@ elif page == "Prediction":
     model = models[selected_model]
 
     input_data = {}
-    cols_per_row = 3
-    cols = st.columns(cols_per_row)
-    
-    for i, col in enumerate(X.columns):
-        current_col = cols[i % cols_per_row]
-        with current_col:
-            if col in label_encoders:
-                options = sorted(label_encoders[col].classes_)
-                choice = st.selectbox(f"{col}", options)
-                input_data[col] = label_encoders[col].transform([choice])[0]
-            else:
-                input_data[col] = st.number_input(
-                    f"{col}", 
-                    float(df[col].min()), 
-                    float(df[col].max()), 
-                    float(df[col].mean())
-                )
-
-    if st.button("Predict Injury Severity"):
-        input_df = pd.DataFrame([input_data])
-        prediction = model.predict(input_df)[0]
-        probs = model.predict_proba(input_df)[0]
-        confidence = np.max(probs) * 100
-
-        if 'Injury Severity' in label_encoders:
-            severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0]
+    for col in X.columns:
+        if col in label_encoders:
+            options = sorted(label_encoders[col].classes_)
+            choice = st.selectbox(f"{col}", options)
+            input_data[col] = label_encoders[col].transform([choice])[0]
         else:
-            severity_label = prediction
+            input_data[col] = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
 
-        st.success(f"**Predicted Injury Severity:** {severity_label}")
-        st.info(f"**Confidence:** {confidence:.2f}%")
+    input_df = pd.DataFrame([input_data])
+    prediction = model.predict(input_df)[0]
+    probs = model.predict_proba(input_df)[0]
+    confidence = np.max(probs) * 100
 
-        # Show probability distribution
-        fig, ax = plt.subplots(figsize=(10, 4))
-        if 'Injury Severity' in label_encoders:
-            classes = label_encoders['Injury Severity'].classes_
-        else:
-            classes = range(len(probs))
-        
-        sns.barplot(x=classes, y=probs, ax=ax, palette=PALETTE)
-        ax.set_title('Prediction Probability Distribution')
-        ax.set_xlabel('Severity Level')
-        ax.set_ylabel('Probability')
-        st.pyplot(fig)
+    if 'Injury Severity' in label_encoders:
+        severity_label = label_encoders['Injury Severity'].inverse_transform([prediction])[0]
+    else:
+        severity_label = prediction
+
+    st.success(f"**Predicted Injury Severity:** {severity_label}")
+    st.info(f"**Confidence:** {confidence:.2f}%")
 
 # --- Reports ---
 elif page == "Reports":
-    st.title("Generated Reports")
+    st.title("Update later Generated Reports")
     st.write("### Dataset Summary")
     st.dataframe(df.describe())
 
