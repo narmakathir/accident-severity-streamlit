@@ -24,18 +24,18 @@ def set_dark_theme():
     # Set seaborn style
     sns.set_style("darkgrid")
     
-    # Custom color palette - using coolwarm scheme
+    # Custom color palette - using coolwarm scheme for visualizations only
     PALETTE = sns.color_palette("coolwarm", 10).as_hex()
     
     # Set matplotlib rcParams
-    plt.rcParams['figure.facecolor'] = '#0E1117'
-    plt.rcParams['axes.facecolor'] = '#0E1117'
-    plt.rcParams['axes.edgecolor'] = 'white'
-    plt.rcParams['axes.labelcolor'] = 'white'
-    plt.rcParams['text.color'] = 'white'
-    plt.rcParams['xtick.color'] = 'white'
-    plt.rcParams['ytick.color'] = 'white'
-    plt.rcParams['grid.color'] = '#2A3459'
+    plt.rcParams['figure.facecolor'] = '#0A0E17'
+    plt.rcParams['axes.facecolor'] = '#0A0E17'
+    plt.rcParams['axes.edgecolor'] = '#3A3F4B'
+    plt.rcParams['axes.labelcolor'] = '#E0E0E0'
+    plt.rcParams['text.color'] = '#E0E0E0'
+    plt.rcParams['xtick.color'] = '#E0E0E0'
+    plt.rcParams['ytick.color'] = '#E0E0E0'
+    plt.rcParams['grid.color'] = '#1E222D'
     
     return PALETTE
 
@@ -49,122 +49,159 @@ st.markdown("""
 <style>
     /* Main page background */
     .stApp {
-        background-color: #0E1117;
-        color: white;
+        background-color: #0A0E17;
+        color: #E0E0E0;
     }
     
     /* Sidebar styling */
     .css-1d391kg {
-        background-color: #121721 !important;
-        border-right: 1px solid #2A3459;
+        background-color: #0F131D !important;
+        border-right: 1px solid #1E222D;
     }
     
     /* Navigation buttons */
     .stButton>button {
         width: 100%;
-        background-color: #1E2130;
-        color: white;
-        border: 1px solid #2A3459;
-        border-radius: 5px;
+        background-color: #1A1E2B;
+        color: #E0E0E0;
+        border: 1px solid #2A2F3D;
+        border-radius: 4px;
         padding: 10px 15px;
         margin: 5px 0;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
+        text-align: left;
     }
     
     .stButton>button:hover {
-        background-color: #2A3459;
-        color: white;
-        transform: translateX(5px);
+        background-color: #252A3A;
+        color: #FFFFFF;
+        border-color: #3A3F4B;
     }
     
     .stButton>button:focus {
-        background-color: #3A4B8C;
-        color: white;
-        box-shadow: 0 0 0 2px #4A5B9C;
+        background-color: #252A3A;
+        color: #FFFFFF;
+        box-shadow: 0 0 0 1px #3A3F4B;
     }
     
     /* Active button style */
     .stButton>button[kind="primary"] {
-        background-color: #3A4B8C !important;
-        border-color: #4A5B9C !important;
-        font-weight: bold;
+        background-color: #1A2A4A !important;
+        border-color: #2A3A5A !important;
+        font-weight: 500;
     }
     
     /* Widgets */
     .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
-        background-color: #1E2130;
-        color: white;
-        border-color: #2A3459;
+        background-color: #1A1E2B;
+        color: #E0E0E0;
+        border-color: #2A2F3D;
     }
     
     /* Text input */
     .stTextInput input {
-        color: white !important;
+        color: #E0E0E0 !important;
+        background-color: #1A1E2B !important;
     }
     
     /* Select boxes */
     .stSelectbox select {
-        color: white !important;
+        color: #E0E0E0 !important;
+        background-color: #1A1E2B !important;
     }
     
     /* Number input */
     .stNumberInput input {
-        color: white !important;
+        color: #E0E0E0 !important;
+        background-color: #1A1E2B !important;
     }
     
     /* Dataframes */
     .stDataFrame {
-        background-color: #1E2130;
+        background-color: #1A1E2B;
     }
     
     /* Tables */
     table {
-        color: white !important;
+        color: #E0E0E0 !important;
     }
     
     /* Markdown text color */
     .stMarkdown {
-        color: white;
+        color: #E0E0E0;
     }
     
     /* Divider color */
     hr {
-        border-color: #2A3459;
+        border-color: #1E222D;
     }
     
     /* Card styling */
     .card {
-        background-color: #1E2130;
-        border-radius: 10px;
+        background-color: #1A1E2B;
+        border-radius: 6px;
         padding: 20px;
         margin: 10px 0;
-        border: 1px solid #2A3459;
+        border: 1px solid #2A2F3D;
     }
     
     /* Metric styling */
     .stMetric {
-        background-color: #1E2130;
-        border: 1px solid #2A3459;
-        border-radius: 5px;
+        background-color: #1A1E2B;
+        border: 1px solid #2A2F3D;
+        border-radius: 4px;
         padding: 15px;
     }
     
     /* Alert boxes */
     .stAlert {
-        background-color: #1E2130;
-        border-color: #2A3459;
-        border-radius: 5px;
+        background-color: #1A1E2B;
+        border-color: #2A2F3D;
+        border-radius: 4px;
     }
     
     /* Title styling */
     h1 {
-        border-bottom: 2px solid #3A4B8C;
-        padding-bottom: 10px;
+        color: #E0E0E0;
+        border-bottom: 1px solid #1A2A4A;
+        padding-bottom: 8px;
+        margin-bottom: 20px;
     }
     
     h2 {
-        border-left: 4px solid #3A4B8C;
+        color: #E0E0E0;
+        border-left: 4px solid #1A2A4A;
         padding-left: 10px;
+        margin-top: 25px;
+    }
+    
+    h3 {
+        color: #E0E0E0;
+        margin-top: 20px;
+    }
+    
+    /* Expander headers */
+    .stExpander .streamlit-expanderHeader {
+        color: #E0E0E0;
+        background-color: #1A1E2B;
+        border-radius: 4px;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #1A1E2B;
+        border-radius: 4px 4px 0 0;
+        border: 1px solid #2A2F3D;
+        padding: 8px 16px;
+        margin-right: 0;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #1A2A4A;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -416,13 +453,13 @@ def create_sidebar():
 
 # --- Home Page ---
 def render_home():
-    st.title("🚗 Traffic Accident Severity Prediction")
+    st.title("Traffic Accident Severity Prediction")
     st.markdown(PROJECT_OVERVIEW, unsafe_allow_html=True)
 
-    with st.expander("📊 Dataset Preview", expanded=True):
+    with st.expander("Dataset Preview", expanded=True):
         st.dataframe(st.session_state.current_df.copy().head().style.set_properties(**{
-            'background-color': '#1E2130',
-            'color': 'white'
+            'background-color': '#1A1E2B',
+            'color': '#E0E0E0'
         }))
     
     st.markdown("---")
@@ -438,14 +475,14 @@ def render_home():
 
 # --- Data Analysis Page ---
 def render_data_analysis():
-    st.title("📈 Data Analysis & Insights")
-    st.markdown("*Explore key patterns and model performance.*")
+    st.title("Data Analysis & Insights")
+    st.markdown("Explore key patterns and model performance.")
     
     # Get current data from session state
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
-    with st.expander("🎯 Target Variable Distribution", expanded=True):
+    with st.expander("Target Variable Distribution", expanded=True):
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
@@ -464,14 +501,14 @@ def render_data_analysis():
             new_labels = [severity_labels.get(label, label) for label in current_labels]
             ax.set_xticklabels(new_labels, rotation=45, ha='right')
             
-            ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
-            ax.set_xlabel('Severity Level', color='white')
-            ax.set_ylabel('Count', color='white')
+            ax.set_title(f'Count of {st.session_state.target_col} Levels', color='#E0E0E0')
+            ax.set_xlabel('Severity Level', color='#E0E0E0')
+            ax.set_ylabel('Count', color='#E0E0E0')
             st.pyplot(fig)
         else:
             st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     
-    with st.expander("📍 Accident Hotspot Locations"):
+    with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
             # Create Folium map with dark tiles
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
@@ -484,7 +521,7 @@ def render_data_analysis():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
                     radius=3,
-                    color=PALETTE[1],  # Using the coolwarm palette
+                    color=PALETTE[1],
                     fill=True,
                     fill_color=PALETTE[1],
                     fill_opacity=0.7
@@ -494,19 +531,19 @@ def render_data_analysis():
         else:
             st.warning("No location data found in dataset.")
     
-    with st.expander("🔗 Feature Correlation Heatmap"):
+    with st.expander("Feature Correlation Heatmap"):
         try:
             corr = df.select_dtypes(['number']).corr()
             fig, ax = plt.subplots(figsize=(12, 10))
             sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax, center=0,
                        cbar_kws={'label': 'Correlation Coefficient'})
-            ax.set_title("Feature Correlation Heatmap", color='white', pad=20)
+            ax.set_title("Feature Correlation Heatmap", color='#E0E0E0', pad=20)
             st.pyplot(fig)
         except Exception as e:
             st.warning(f"Could not generate correlation heatmap: {str(e)}")
     
     if not st.session_state.scores_df.empty:
-        with st.expander("📊 Model Performance Metrics"):
+        with st.expander("Model Performance Metrics"):
             # Format the scores to show 2 decimal places
             formatted_scores = st.session_state.scores_df.copy()
             for col in formatted_scores.columns[1:]:
@@ -514,23 +551,23 @@ def render_data_analysis():
             
             # Display as a styled table
             st.table(formatted_scores.style.set_properties(**{
-                'background-color': '#1E2130',
-                'color': 'white',
-                'border-color': '#2A3459'
+                'background-color': '#1A1E2B',
+                'color': '#E0E0E0',
+                'border-color': '#2A2F3D'
             }))
             
             # Performance comparison chart
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
             performance_df.plot(kind='bar', ax=ax, color=PALETTE)
-            ax.set_title('Model Performance Comparison', color='white', pad=20)
-            ax.set_ylabel('Score (%)', color='white')
-            ax.set_xlabel('Model', color='white')
+            ax.set_title('Model Performance Comparison', color='#E0E0E0', pad=20)
+            ax.set_ylabel('Score (%)', color='#E0E0E0')
+            ax.set_xlabel('Model', color='#E0E0E0')
             ax.grid(True, linestyle='--', alpha=0.6)
-            ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
+            ax.legend(facecolor='#0A0E17', edgecolor='#0A0E17')
             st.pyplot(fig)
     
-    with st.expander("🔍 Feature Importance Analysis"):
+    with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
         
         if model_name in st.session_state.models:
@@ -556,17 +593,17 @@ def render_data_analysis():
 
                 fig, ax = plt.subplots(figsize=(10, 6))
                 sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
-                ax.set_title(f'{model_name} - Top {n_features} Features', color='white', pad=20)
-                ax.set_xlabel('Importance Score', color='white')
-                ax.set_ylabel('Feature', color='white')
+                ax.set_title(f'{model_name} - Top {n_features} Features', color='#E0E0E0', pad=20)
+                ax.set_xlabel('Importance Score', color='#E0E0E0')
+                ax.set_ylabel('Feature', color='#E0E0E0')
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Could not display feature importances: {str(e)}")
 
 # --- Prediction Page ---
 def render_prediction():
-    st.title("🔮 Accident Severity Prediction")
-    st.markdown("*Make custom predictions by selecting input values below.*")
+    st.title("Accident Severity Prediction")
+    st.markdown("Make custom predictions by selecting input values below.")
     
     if not st.session_state.models:
         st.warning("No models available for prediction. Please check the Data Analysis page.")
@@ -615,10 +652,10 @@ def render_prediction():
                             severity_label = prediction
 
                         # Display prediction results
-                        st.success("Prediction completed successfully!")
+                        st.success("Prediction completed successfully.")
                         
                         # Create columns for better layout
-                        st.subheader("📊 Prediction Results")
+                        st.subheader("Prediction Results")
                         res_col1, res_col2 = st.columns(2)
                         
                         with res_col1:
@@ -638,9 +675,9 @@ def render_prediction():
                             fig, ax = plt.subplots(figsize=(10, 4))
                             sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
                                         ax=ax, palette=PALETTE)
-                            ax.set_title('Severity Probability Distribution', color='white')
-                            ax.set_xlabel('Severity Level', color='white')
-                            ax.set_ylabel('Probability (%)', color='white')
+                            ax.set_title('Severity Probability Distribution', color='#E0E0E0')
+                            ax.set_xlabel('Severity Level', color='#E0E0E0')
+                            ax.set_ylabel('Probability (%)', color='#E0E0E0')
                             st.pyplot(fig)
                         
                     except Exception as e:
@@ -648,28 +685,28 @@ def render_prediction():
 
 # --- Reports Page ---
 def render_reports():
-    st.title("📋 Dataset Reports")
+    st.title("Dataset Reports")
     
-    with st.expander("📊 Dataset Summary Statistics", expanded=True):
+    with st.expander("Dataset Summary Statistics", expanded=True):
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
-            'background-color': '#1E2130',
-            'color': 'white',
-            'border-color': '#2A3459'
+            'background-color': '#1A1E2B',
+            'color': '#E0E0E0',
+            'border-color': '#2A2F3D'
         }))
     
-    with st.expander("📄 Column Information"):
+    with st.expander("Column Information"):
         col_info = pd.DataFrame({
             'Column': st.session_state.current_df.columns,
             'Data Type': st.session_state.current_df.dtypes,
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E2130',
-            'color': 'white',
-            'border-color': '#2A3459'
+            'background-color': '#1A1E2B',
+            'color': '#E0E0E0',
+            'border-color': '#2A2F3D'
         }))
     
-    with st.expander("⚠️ Missing Values Report"):
+    with st.expander("Missing Values Report"):
         missing_data = st.session_state.current_df.isnull().sum()
         missing_data = missing_data[missing_data > 0]
         if len(missing_data) > 0:
@@ -680,16 +717,16 @@ def render_reports():
 
 # --- Help Page ---
 def render_help():
-    st.title("❓ User Guide")
+    st.title("User Guide")
     
-    with st.expander("📌 Application Overview", expanded=True):
+    with st.expander("Application Overview", expanded=True):
         st.markdown("""
         <div class="card">
         <p>This application provides tools for analyzing traffic accident data and predicting accident severity using machine learning models.</p>
         </div>
         """, unsafe_allow_html=True)
     
-    with st.expander("🧭 Navigation Guide"):
+    with st.expander("Navigation Guide"):
         st.markdown("""
         - **Home**: Project overview and dataset preview
         - **Data Analysis**: Visualizations and insights from the data
@@ -699,7 +736,7 @@ def render_help():
         - **Admin**: Administrator tools (when admin mode is enabled)
         """)
     
-    with st.expander("📊 Data Analysis Section"):
+    with st.expander("Data Analysis Section"):
         st.markdown("""
         The Data Analysis page includes:
         - Target variable distribution
@@ -709,7 +746,7 @@ def render_help():
         - Feature importance analysis
         """)
     
-    with st.expander("🔮 Prediction Section"):
+    with st.expander("Prediction Section"):
         st.markdown("""
         To make predictions:
         1. Select a machine learning model
@@ -718,7 +755,7 @@ def render_help():
         4. View the results
         """)
     
-    with st.expander("⚙️ Technical Information"):
+    with st.expander("Technical Information"):
         st.markdown("""
         The application uses the following machine learning models:
         - Logistic Regression
@@ -731,7 +768,7 @@ def render_help():
 
 # --- Admin Page ---
 def render_admin():
-    st.title("🔒 Administration Dashboard")
+    st.title("Administration Dashboard")
     
     # Simple password protection
     password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
@@ -740,9 +777,9 @@ def render_admin():
         st.error("Incorrect password. Access denied.")
         st.stop()  # This stops execution if password is wrong
     
-    st.warning("⚠️ You are in administrator mode. Changes here will affect all users.")
+    st.warning("You are in administrator mode. Changes here will affect all users.")
     
-    with st.expander("🗄️ Dataset Management", expanded=True):
+    with st.expander("Dataset Management", expanded=True):
         uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
         
         if uploaded_file is not None:
@@ -751,7 +788,7 @@ def render_admin():
                 with st.spinner("Processing new dataset and retraining models..."):
                     handle_dataset_upload(uploaded_file)
     
-    with st.expander("📊 System Information"):
+    with st.expander("System Information"):
         info_col1, info_col2 = st.columns(2)
         
         with info_col1:
@@ -762,7 +799,7 @@ def render_admin():
             st.metric("Number of Models", len(st.session_state.models))
             st.metric("Dataset Rows", len(st.session_state.current_df))
     
-    with st.expander("⚙️ System Maintenance"):
+    with st.expander("System Maintenance"):
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
@@ -781,7 +818,7 @@ def render_admin():
                 st.session_state.y_test = y_test
                 st.session_state.target_col = target_col
                 
-                st.success("✅ System reset to default dataset completed!")
+                st.success("System reset to default dataset completed.")
 
 # --- Main App ---
 def main():
