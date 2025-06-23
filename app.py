@@ -6,6 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 import tempfile
+import folium
+from streamlit_folium import folium_static
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -266,162 +268,124 @@ elif page == "Data Analysis":
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
-    # Section 1: Target Variable Distribution
     st.subheader("➥ Target Variable Distribution")
     if st.session_state.target_col in df.columns:
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots()
         sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
-        ax.set_title(f'Distribution of {st.session_state.target_col}', fontsize=14)
-        ax.set_xlabel('Severity Level')
-        ax.set_ylabel('Count')
+        ax.set_title(f'Count of {st.session_state.target_col} Levels')
         st.pyplot(fig)
-        
-        # Add value counts table
-        severity_counts = df[st.session_state.target_col].value_counts().sort_index()
-        st.write("Value Counts:")
-        st.dataframe(severity_counts)
     else:
         st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
-    # Section 2: Location Visualization with Folium
-    st.subheader("➥ Accident Hotspots")
-    
-    # Extract coordinates from Location column
-    if 'Location' in df.columns:
+    st.subheader("➥ Hotspot Location")
+    if 'Location_Original' in df.columns:
         try:
-            coords = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
-            df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
-            df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
-            df.dropna(subset=['latitude', 'longitude'], inplace=True)
+            # Extract coordinates from the format (38.98765667, -76.987545)
+            coords = df['Location_Original'].str.extract(r'\(([-\d.]+),\s*([-\d.]+)\)')
+            coords.columns = ['latitude', 'longitude']
+            coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
+            coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
+            coords = coords.dropna()
+            
+            if not coords.empty:
+                # Create Folium map with dark tiles
+                m = folium.Map(location=[coords['latitude'].mean(), coords['longitude'].mean()], 
+                              zoom_start=11, 
+                              tiles='CartoDB dark_matter')
+                
+                # Add points to the map - sample up to 1000 points for performance
+                for idx, row in coords.sample(min(1000, len(coords))).iterrows():
+                    folium.CircleMarker(
+                        location=[row['latitude'], row['longitude']],
+                        radius=3,
+                        color='red',
+                        fill=True,
+                        fill_color='red',
+                        fill_opacity=0.7
+                    ).add_to(m)
+                
+                folium_static(m, width=1000, height=600)
+            else:
+                st.warning("No valid geographic coordinates found after processing.")
         except Exception as e:
-            st.warning(f"Error parsing location data: {str(e)}")
-
-    if 'latitude' in df.columns and 'longitude' in df.columns:
-        # Show location stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Locations", len(df))
-        with col2:
-            st.metric("Average Latitude", f"{df['latitude'].mean():.4f}")
-        with col3:
-            st.metric("Average Longitude", f"{df['longitude'].mean():.4f}")
-
-        # Create Folium map with dark tiles
-        m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
-                      zoom_start=11, 
-                      tiles='CartoDB dark_matter')
-        
-        # Add points to the map (sample if too many points)
-        sample_size = min(1000, len(df))
-        for idx, row in df.sample(sample_size).iterrows():
-            folium.CircleMarker(
-                location=[row['latitude'], row['longitude']],
-                radius=3,
-                color='red',
-                fill=True,
-                fill_color='red',
-                fill_opacity=0.7
-            ).add_to(m)
-        
-        folium_static(m, width=1000, height=600)
-        
-        # Show data summary
-        with st.expander("Location Data Details"):
-            st.write(f"Showing {sample_size} random locations out of {len(df)}")
-            st.write("Coordinate range:")
-            st.write(f"Latitude: {df['latitude'].min():.6f} to {df['latitude'].max():.6f}")
-            st.write(f"Longitude: {df['longitude'].min():.6f} to {df['longitude'].max():.6f}")
+            st.warning(f"Could not process location data: {str(e)}")
     else:
-        st.warning("Geographic coordinates not available in the dataset.")
+        # Try to find separate latitude/longitude columns
+        lat_col = next((col for col in df.columns if 'lat' in col.lower()), None)
+        long_col = next((col for col in df.columns if 'long' in col.lower()), None)
+        
+        if lat_col and long_col:
+            try:
+                coords = df[[lat_col, long_col]].copy()
+                coords.columns = ['latitude', 'longitude']
+                coords = coords.dropna()
+                if not coords.empty:
+                    st.map(coords)
+                else:
+                    st.warning("Latitude/Longitude columns exist but contain no valid data.")
+            except Exception as e:
+                st.warning(f"Could not use latitude/longitude columns: {str(e)}")
+        else:
+            st.warning("No location data found in dataset.")
     st.divider()
 
-    # Section 3: Correlation Analysis
     st.subheader("➥ Correlation Heatmap")
     try:
-        # Select only numeric columns
-        numeric_cols = df.select_dtypes(include=['number']).columns
-        if len(numeric_cols) > 1:
-            corr = df[numeric_cols].corr()
-            fig, ax = plt.subplots(figsize=(12, 10))
-            sns.heatmap(corr, cmap='coolwarm', annot=False, 
-                       center=0, linewidths=0.5, ax=ax, vmin=-1, vmax=1)
-            ax.set_title("Feature Correlation Heatmap", fontsize=14)
-            st.pyplot(fig)
-            
-            # Show highest correlations
-            corr_matrix = corr.abs()
-            np.fill_diagonal(corr_matrix.values, 0)  # Ignore diagonal
-            top_corrs = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
-            st.write("Top Feature Correlations:")
-            st.dataframe(top_corrs.head(10))
-        else:
-            st.warning("Not enough numeric columns for correlation analysis.")
-    except Exception as e:
-        st.warning(f"Could not generate correlation heatmap: {str(e)}")
-    st.divider()
-
-    # Section 4: Model Performance
-    st.subheader("➥ Model Performance Comparison")
-    if not scores_df.empty:
-        # Metrics table
-        st.dataframe(scores_df.round(2).style.highlight_max(axis=0))
-        
-        # Interactive metric selection
-        selected_metric = st.selectbox("Select metric to compare", 
-                                     ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
-        
-        # Bar chart
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(data=scores_df, x='Model', y=selected_metric, palette=PALETTE, ax=ax)
-        ax.set_title(f'Model Comparison - {selected_metric}', fontsize=14)
-        ax.set_ylabel(selected_metric)
-        ax.tick_params(axis='x', rotation=45)
+        corr = df.select_dtypes(['number']).corr()
+        fig, ax = plt.subplots(figsize=(10, 8))
+        sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
+        ax.set_title("Correlation Heatmap")
         st.pyplot(fig)
-    else:
-        st.warning("No model performance data available.")
+    except:
+        st.warning("Could not generate correlation heatmap.")
     st.divider()
 
-    # Section 5: Feature Importance
-    st.subheader("➥ Feature Importance Analysis")
-    if st.session_state.models:
-        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()))
+    if not st.session_state.scores_df.empty:
+        st.subheader("➥ Model Performance")
+        st.table(st.session_state.scores_df.round(2))
+        st.divider()
+
+        st.subheader("➥ Model Comparison Bar Chart")
+        performance_df = st.session_state.scores_df.set_index('Model')
+        fig, ax = plt.subplots()
+        performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
+        ax.set_title('Model Comparison')
+        ax.set_ylabel('Score (%)')
+        ax.grid(True, linestyle='--', alpha=0.6)
+        st.pyplot(fig)
+        st.divider()
+
+        st.subheader("➥ Model-Specific Feature Importances")
+        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
         
-        try:
+        if model_name in st.session_state.models:
             model = st.session_state.models[model_name]
             
-            # Get importances based on model type
-            if hasattr(model, 'feature_importances_'):
-                importances = model.feature_importances_
-            elif hasattr(model, 'coef_'):
-                importances = np.abs(model.coef_[0])
-            else:
-                importances = None
+            try:
+                if hasattr(model, 'feature_importances_'):
+                    importances = model.feature_importances_
+                elif hasattr(model, 'coef_'):
+                    importances = np.abs(model.coef_[0])
+                elif hasattr(model, 'coefs_'):
+                    importances = np.mean(np.abs(model.coefs_[0]), axis=1)
+                else:
+                    raise AttributeError("Model doesn't have feature importance attributes")
                 
-            if importances is not None:
-                features = st.session_state.X.columns
-                importance_df = pd.DataFrame({
-                    'Feature': features,
-                    'Importance': importances
-                }).sort_values('Importance', ascending=False).head(10)
+                importances_vals = importances / importances.sum()
+                sorted_idx = np.argsort(importances_vals)[::-1]
                 
-                # Plot
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.barplot(x='Importance', y='Feature', data=importance_df, 
-                           palette='viridis', ax=ax)
-                ax.set_title(f'{model_name} - Top 10 Features', fontsize=14)
-                ax.set_xlabel('Relative Importance')
+                # Ensure we don't try to access more features than available
+                n_features = min(10, len(st.session_state.X.columns))
+                top_features = st.session_state.X.columns[sorted_idx][:n_features]
+                top_vals = importances_vals[sorted_idx][:n_features]
+
+                fig, ax = plt.subplots()
+                sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
+                ax.set_title(f'{model_name} Top {n_features} Features')
                 st.pyplot(fig)
-                
-                # Data table
-                st.write("Feature Importance Scores:")
-                st.dataframe(importance_df.style.format({'Importance': '{:.4f}'}))
-            else:
-                st.warning(f"Feature importance not available for {model_name}")
-        except Exception as e:
-            st.warning(f"Could not display feature importance: {str(e)}")
-    else:
-        st.warning("No trained models available.")
+            except Exception as e:
+                st.warning(f"Could not display feature importances: {str(e)}")
 
 # --- Prediction ---
 elif page == "Prediction":
