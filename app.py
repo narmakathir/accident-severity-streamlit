@@ -271,7 +271,7 @@ elif page == "Data Analysis":
     
     st.subheader("➥ Target Variable Distribution")
     if st.session_state.target_col in df.columns:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 6))
         sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
         
         # Add severity level labels
@@ -286,7 +286,7 @@ elif page == "Data Analysis":
         # Get current labels and replace with severity labels if they match
         current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
         new_labels = [severity_labels.get(label, label) for label in current_labels]
-        ax.set_xticklabels(new_labels)
+        ax.set_xticklabels(new_labels, rotation=45, ha='right')
         
         ax.set_title(f'Count of {st.session_state.target_col} Levels')
         ax.set_xlabel('Severity Level')
@@ -358,7 +358,11 @@ elif page == "Data Analysis":
 
     if not st.session_state.scores_df.empty:
         st.subheader("➥ Model Performance")
-        st.table(st.session_state.scores_df.round(2))
+        # Format the scores to show 2 decimal places
+        formatted_scores = st.session_state.scores_df.copy()
+        for col in formatted_scores.columns[1:]:
+            formatted_scores[col] = formatted_scores[col].apply(lambda x: f"{x:.2f}")
+        st.table(formatted_scores)
         st.divider()
 
         st.subheader("➥ Model Comparison Bar Chart")
@@ -488,14 +492,8 @@ elif page == "Help":
     - View dataset statistics
     - See column information and data types
     
-    **5. Admin (Admin Mode Only)**
-    - Upload new datasets
-    - Reset to default dataset
-    - View system information
-    
-    **Admin Access:**
-    - Enable Admin Mode in the sidebar
-    - Password: admin1
+    **5. Help**
+    - This user manual page
     """)
 
 # --- Admin Page ---
