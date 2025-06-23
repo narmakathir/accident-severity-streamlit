@@ -246,13 +246,10 @@ if 'admin_mode' not in st.session_state:
 
 if st.sidebar.checkbox("Admin Mode"):
     st.session_state.admin_mode = True
+    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Help", "Admin"])
 else:
     st.session_state.admin_mode = False
-
-if st.session_state.admin_mode:
-    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Admin"])
-else:
-    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports"])
+    page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Prediction", "Reports", "Help"])
 
 # --- Home ---
 if page == "Home":
@@ -261,11 +258,6 @@ if page == "Home":
 
     st.subheader("Dataset Preview")
     st.dataframe(st.session_state.current_df.copy().head())
-    
-    st.subheader("Current Dataset Info")
-    st.write(f"Number of records: {len(st.session_state.current_df)}")
-    st.write(f"Target variable: {st.session_state.target_col}")
-    st.write(f"Features: {', '.join(st.session_state.X.columns)}")
 
 # --- Data Analysis ---
 elif page == "Data Analysis":
@@ -281,7 +273,24 @@ elif page == "Data Analysis":
     if st.session_state.target_col in df.columns:
         fig, ax = plt.subplots()
         sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
+        
+        # Add severity level labels
+        severity_labels = {
+            0: "No Injury",
+            1: "Minor Injury",
+            2: "Moderate Injury",
+            3: "Serious Injury",
+            4: "Fatal Injury"
+        }
+        
+        # Get current labels and replace with severity labels if they match
+        current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
+        new_labels = [severity_labels.get(label, label) for label in current_labels]
+        ax.set_xticklabels(new_labels)
+        
         ax.set_title(f'Count of {st.session_state.target_col} Levels')
+        ax.set_xlabel('Severity Level')
+        ax.set_ylabel('Count')
         st.pyplot(fig)
     else:
         st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
@@ -439,10 +448,6 @@ elif page == "Reports":
     st.write("### Dataset Summary")
     st.dataframe(st.session_state.current_df.describe())
     
-    st.write("### Missing Values Report")
-    missing_data = st.session_state.current_df.isnull().sum()
-    st.write(missing_data[missing_data > 0])
-    
     st.write("### Column Information")
     col_info = pd.DataFrame({
         'Column': st.session_state.current_df.columns,
@@ -450,6 +455,48 @@ elif page == "Reports":
         'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
     })
     st.dataframe(col_info)
+
+# --- Help Page ---
+elif page == "Help":
+    st.title("User Manual")
+    
+    st.markdown("""
+    ### How to Use This Application
+    
+    **Navigation:**
+    - Use the sidebar to navigate between different sections of the application.
+    
+    **Pages:**
+    
+    **1. Home**
+    - Overview of the project
+    - Preview of the dataset
+    
+    **2. Data Analysis**
+    - Visualizations of the target variable distribution
+    - Accident hotspot map
+    - Correlation heatmap
+    - Model performance metrics
+    - Feature importance analysis
+    
+    **3. Prediction**
+    - Make custom predictions by selecting input values
+    - Choose between different machine learning models
+    - View prediction confidence levels
+    
+    **4. Reports**
+    - View dataset statistics
+    - See column information and data types
+    
+    **5. Admin (Admin Mode Only)**
+    - Upload new datasets
+    - Reset to default dataset
+    - View system information
+    
+    **Admin Access:**
+    - Enable Admin Mode in the sidebar
+    - Password: admin1
+    """)
 
 # --- Admin Page ---
 elif page == "Admin":
