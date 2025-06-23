@@ -19,85 +19,113 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
-# --- Config ---
+# --- Custom Dark Theme Configuration ---
+def set_dark_theme():
+    # Set seaborn style
+    sns.set_style("darkgrid")
+    
+    # Custom color palette
+    PALETTE = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+               '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    
+    # Set matplotlib rcParams
+    plt.rcParams['figure.facecolor'] = '#0E1117'
+    plt.rcParams['axes.facecolor'] = '#0E1117'
+    plt.rcParams['axes.edgecolor'] = 'white'
+    plt.rcParams['axes.labelcolor'] = 'white'
+    plt.rcParams['text.color'] = 'white'
+    plt.rcParams['xtick.color'] = 'white'
+    plt.rcParams['ytick.color'] = 'white'
+    plt.rcParams['grid.color'] = '#2A3459'
+    
+    return PALETTE
+
+PALETTE = set_dark_theme()
+
+# --- Streamlit Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
-# Dark theme colors
-DARK_BACKGROUND = "#0E1117"
-DARK_CONTAINER = "#1E1E1E"
-DARK_TEXT = "#FAFAFA"
-ACCENT_COLOR = "#1F77B4"
-SECONDARY_COLOR = "#FF7F0E"
-TERTIARY_COLOR = "#2CA02C"
-
-# Set dark theme for matplotlib
-plt.style.use('dark_background')
-sns.set_style("darkgrid")
-sns.set_palette([ACCENT_COLOR, SECONDARY_COLOR, TERTIARY_COLOR])
-
 # Custom CSS for dark theme
-st.markdown(f"""
-    <style>
-        .stApp {{
-            background-color: {DARK_BACKGROUND};
-            color: {DARK_TEXT};
-        }}
-        .css-1d391kg, .st-bb, .st-at, .st-ax, .st-ay, .st-az, .st-b0, .st-b1, .st-b2, .st-b3, .st-b4, .st-b5, .st-b6 {{
-            background-color: {DARK_CONTAINER};
-        }}
-        .css-1aumxhk {{
-            background-color: {DARK_BACKGROUND};
-            color: {DARK_TEXT};
-        }}
-        .st-b7, .st-b8, .st-b9, .st-ba {{
-            background-color: {DARK_CONTAINER};
-        }}
-        .css-1v3fvcr {{
-            color: {DARK_TEXT};
-        }}
-        .css-qrbaxs {{
-            color: {DARK_TEXT};
-        }}
-        .css-1v0mbdj {{
-            border: 1px solid {DARK_CONTAINER};
-        }}
-        .css-1cpxqw2 {{
-            border: 1px solid {DARK_CONTAINER};
-        }}
-        .st-ck {{
-            color: {DARK_TEXT};
-        }}
-        .st-cl {{
-            color: {DARK_TEXT};
-        }}
-        .st-cm {{
-            color: {DARK_TEXT};
-        }}
-        .st-cn {{
-            color: {DARK_TEXT};
-        }}
-        .st-bh {{
-            color: {DARK_TEXT};
-        }}
-        .st-bi {{
-            color: {DARK_TEXT};
-        }}
-        .st-bj {{
-            color: {DARK_TEXT};
-        }}
-        .st-bk {{
-            color: {DARK_TEXT};
-        }}
-        .st-bl {{
-            color: {DARK_TEXT};
-        }}
-    </style>
+st.markdown("""
+<style>
+    /* Main page background */
+    .stApp {
+        background-color: #0E1117;
+        color: white;
+    }
+    
+    /* Sidebar background */
+    .css-1d391kg {
+        background-color: #0E1117;
+        border-right: 1px solid #2A3459;
+    }
+    
+    /* Widgets */
+    .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
+        background-color: #1E2130;
+        color: white;
+        border-color: #2A3459;
+    }
+    
+    /* Text input */
+    .stTextInput input {
+        color: white !important;
+    }
+    
+    /* Select boxes */
+    .stSelectbox select {
+        color: white !important;
+    }
+    
+    /* Number input */
+    .stNumberInput input {
+        color: white !important;
+    }
+    
+    /* Dataframes */
+    .stDataFrame {
+        background-color: #1E2130;
+    }
+    
+    /* Tables */
+    table {
+        color: white !important;
+    }
+    
+    /* Markdown text color */
+    .stMarkdown {
+        color: white;
+    }
+    
+    /* Divider color */
+    hr {
+        border-color: #2A3459;
+    }
+    
+    /* Button styling */
+    .stButton>button {
+        background-color: #1E2130;
+        color: white;
+        border-color: #2A3459;
+    }
+    
+    .stButton>button:hover {
+        background-color: #2A3459;
+        color: white;
+    }
+    
+    /* Success, info, warning, error boxes */
+    .stAlert {
+        background-color: #1E2130;
+        border-color: #2A3459;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
 Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
-
+ 
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
 
@@ -324,7 +352,7 @@ else:
 # --- Home ---
 if page == "Home":
     st.title("Traffic Accident Severity Prediction")
-    st.write(PROJECT_OVERVIEW)
+    st.markdown(PROJECT_OVERVIEW)
 
     st.subheader("Dataset Preview")
     st.dataframe(st.session_state.current_df.copy().head())
@@ -332,7 +360,7 @@ if page == "Home":
 # --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("Data Analysis & Insights")
-    st.markdown("Explore key patterns and model performance.")
+    st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
     # Get current data from session state
@@ -342,7 +370,7 @@ elif page == "Data Analysis":
     st.subheader("Target Variable Distribution")
     if st.session_state.target_col in df.columns:
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.countplot(x=st.session_state.target_col, data=df, ax=ax)
+        sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
         
         # Add severity level labels
         severity_labels = {
@@ -358,29 +386,30 @@ elif page == "Data Analysis":
         new_labels = [severity_labels.get(label, label) for label in current_labels]
         ax.set_xticklabels(new_labels, rotation=45, ha='right')
         
-        ax.set_title(f'Count of {st.session_state.target_col} Levels')
-        ax.set_xlabel('Severity Level')
-        ax.set_ylabel('Count')
+        ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
+        ax.set_xlabel('Severity Level', color='white')
+        ax.set_ylabel('Count', color='white')
         st.pyplot(fig)
     else:
         st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
-    st.subheader("Hotspot Location")
+    st.subheader("Accident Hotspot Locations")
     if 'latitude' in df.columns and 'longitude' in df.columns:
         # Create Folium map with dark tiles
         m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                       zoom_start=11, 
-                      tiles='CartoDB dark_matter')
+                      tiles='CartoDB dark_matter',
+                      attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
         
         # Add points to the map
         for idx, row in df.sample(min(1000, len(df))).iterrows():
             folium.CircleMarker(
                 location=[row['latitude'], row['longitude']],
                 radius=3,
-                color='red',
+                color='#ff7f0e',  # Using orange from our palette
                 fill=True,
-                fill_color='red',
+                fill_color='#ff7f0e',
                 fill_opacity=0.7
             ).add_to(m)
         
@@ -402,9 +431,9 @@ elif page == "Data Analysis":
                     folium.CircleMarker(
                         location=[row[lat_col], row[long_col]],
                         radius=3,
-                        color='red',
+                        color='#ff7f0e',
                         fill=True,
-                        fill_color='red',
+                        fill_color='#ff7f0e',
                         fill_opacity=0.7
                     ).add_to(m)
                 
@@ -415,37 +444,46 @@ elif page == "Data Analysis":
             st.warning("No location data found in dataset.")
     st.divider()
 
-    st.subheader("Correlation Heatmap")
+    st.subheader("Feature Correlation Heatmap")
     try:
         corr = df.select_dtypes(['number']).corr()
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
-        ax.set_title("Correlation Heatmap")
+        fig, ax = plt.subplots(figsize=(12, 10))
+        sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax, center=0,
+                   cbar_kws={'label': 'Correlation Coefficient'})
+        ax.set_title("Feature Correlation Heatmap", color='white', pad=20)
         st.pyplot(fig)
-    except:
-        st.warning("Could not generate correlation heatmap.")
+    except Exception as e:
+        st.warning(f"Could not generate correlation heatmap: {str(e)}")
     st.divider()
 
     if not st.session_state.scores_df.empty:
-        st.subheader("Model Performance")
+        st.subheader("Model Performance Metrics")
         # Format the scores to show 2 decimal places
         formatted_scores = st.session_state.scores_df.copy()
         for col in formatted_scores.columns[1:]:
             formatted_scores[col] = formatted_scores[col].apply(lambda x: f"{x:.2f}")
-        st.table(formatted_scores)
+        
+        # Display as a styled table
+        st.table(formatted_scores.style.set_properties(**{
+            'background-color': '#1E2130',
+            'color': 'white',
+            'border-color': '#2A3459'
+        }))
         st.divider()
 
-        st.subheader("Model Comparison Bar Chart")
+        st.subheader("Model Performance Comparison")
         performance_df = st.session_state.scores_df.set_index('Model')
-        fig, ax = plt.subplots()
-        performance_df.plot(kind='bar', ax=ax)
-        ax.set_title('Model Comparison')
-        ax.set_ylabel('Score (%)')
+        fig, ax = plt.subplots(figsize=(10, 6))
+        performance_df.plot(kind='bar', ax=ax, color=PALETTE)
+        ax.set_title('Model Performance Comparison', color='white', pad=20)
+        ax.set_ylabel('Score (%)', color='white')
+        ax.set_xlabel('Model', color='white')
         ax.grid(True, linestyle='--', alpha=0.6)
+        ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
         st.pyplot(fig)
         st.divider()
 
-        st.subheader("Model-Specific Feature Importances")
+        st.subheader("Feature Importance Analysis")
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
         
         if model_name in st.session_state.models:
@@ -469,37 +507,52 @@ elif page == "Data Analysis":
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
                 top_vals = importances_vals[sorted_idx][:n_features]
 
-                fig, ax = plt.subplots()
-                sns.barplot(x=top_vals, y=top_features, ax=ax)
-                ax.set_title(f'{model_name} Top {n_features} Features')
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
+                ax.set_title(f'{model_name} - Top {n_features} Features', color='white', pad=20)
+                ax.set_xlabel('Importance Score', color='white')
+                ax.set_ylabel('Feature', color='white')
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Could not display feature importances: {str(e)}")
 
 # --- Prediction ---
 elif page == "Prediction":
-    st.title("Custom Prediction")
+    st.title("Accident Severity Prediction")
+    st.markdown("*Make custom predictions by selecting input values below.*")
     
     if not st.session_state.models:
         st.warning("No models available for prediction. Please check the Data Analysis page.")
     else:
-        selected_model = st.selectbox("Choose Model for Prediction", list(st.session_state.models.keys()))
+        selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
         model = st.session_state.models[selected_model]
         
+        st.subheader("Input Parameters")
+        col1, col2 = st.columns(2)
+        
         input_data = {}
-        for col in st.session_state.X.columns:
+        for i, col in enumerate(st.session_state.X.columns):
+            # Alternate between columns
+            current_col = col1 if i % 2 == 0 else col2
+            
             if col in st.session_state.label_encoders:
                 options = sorted(st.session_state.label_encoders[col].classes_)
-                choice = st.selectbox(f"{col}", options)
+                choice = current_col.selectbox(f"{col}", options)
                 input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
             else:
                 # Get min/max from the original dataframe (before scaling)
                 col_min = st.session_state.current_df[col].min()
                 col_max = st.session_state.current_df[col].max()
                 col_mean = st.session_state.current_df[col].mean()
-                input_data[col] = st.number_input(f"{col}", float(col_min), float(col_max), float(col_mean))
+                input_data[col] = current_col.number_input(
+                    f"{col}", 
+                    float(col_min), 
+                    float(col_max), 
+                    float(col_mean),
+                    key=f"input_{col}"
+                )
         
-        if st.button("Predict"):
+        if st.button("Predict Severity", key="predict_button"):
             input_df = pd.DataFrame([input_data])
             try:
                 prediction = model.predict(input_df)[0]
@@ -511,90 +564,154 @@ elif page == "Prediction":
                 else:
                     severity_label = prediction
 
-                st.success(f"Predicted {st.session_state.target_col}: {severity_label}")
-                st.info(f"Confidence: {confidence:.2f}%")
+                # Display prediction results
+                st.subheader("Prediction Results")
+                
+                # Create columns for better layout
+                res_col1, res_col2 = st.columns(2)
+                
+                with res_col1:
+                    st.metric(label="Predicted Severity", value=severity_label)
+                
+                with res_col2:
+                    st.metric(label="Confidence Level", value=f"{confidence:.2f}%")
+                
+                # Show probability distribution
+                if st.session_state.target_col in st.session_state.label_encoders:
+                    st.subheader("Probability Distribution")
+                    prob_df = pd.DataFrame({
+                        'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
+                        'Probability': probs * 100
+                    })
+                    
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
+                                ax=ax, palette=PALETTE)
+                    ax.set_title('Severity Probability Distribution', color='white')
+                    ax.set_xlabel('Severity Level', color='white')
+                    ax.set_ylabel('Probability (%)', color='white')
+                    st.pyplot(fig)
+                
             except Exception as e:
                 st.error(f"Prediction failed: {str(e)}")
 
 # --- Reports ---
 elif page == "Reports":
     st.title("Dataset Reports")
-    st.write("Dataset Summary")
-    st.dataframe(st.session_state.current_df.describe())
     
-    st.write("Column Information")
+    st.subheader("Dataset Summary Statistics")
+    st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
+        'background-color': '#1E2130',
+        'color': 'white',
+        'border-color': '#2A3459'
+    }))
+    st.divider()
+    
+    st.subheader("Column Information")
     col_info = pd.DataFrame({
         'Column': st.session_state.current_df.columns,
         'Data Type': st.session_state.current_df.dtypes,
         'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
     })
-    st.dataframe(col_info)
+    st.dataframe(col_info.style.set_properties(**{
+        'background-color': '#1E2130',
+        'color': 'white',
+        'border-color': '#2A3459'
+    }))
+    
+    st.divider()
+    
+    st.subheader("Missing Values Report")
+    missing_data = st.session_state.current_df.isnull().sum()
+    missing_data = missing_data[missing_data > 0]
+    if len(missing_data) > 0:
+        st.write("Columns with missing values:")
+        st.dataframe(missing_data.reset_index().rename(columns={'index': 'Column', 0: 'Missing Values'}))
+    else:
+        st.success("No missing values found in the dataset.")
 
 # --- Help Page ---
 elif page == "Help":
-    st.title("User Manual")
-    
+    st.title("User Guide")
     st.markdown("""
-    ### How to Use This Application
+    ### Application Overview
     
-    **Navigation:**
-    - Use the sidebar to navigate between different sections of the application.
+    This application provides tools for analyzing traffic accident data and predicting accident severity using machine learning models.
     
-    **Pages:**
+    ### Navigation Guide
     
-    **1. Home**
-    - Overview of the project
-    - Preview of the dataset
+    Use the sidebar to navigate between different sections:
     
-    **2. Data Analysis**
-    - Visualizations of the target variable distribution
-    - Accident hotspot map
-    - Correlation heatmap
+    - **Home**: Project overview and dataset preview
+    - **Data Analysis**: Visualizations and insights from the data
+    - **Prediction**: Make custom severity predictions
+    - **Reports**: View detailed dataset information
+    - **Help**: This user guide
+    
+    ### Data Analysis Section
+    
+    The Data Analysis page includes:
+    - Target variable distribution
+    - Accident location hotspots
+    - Feature correlation analysis
     - Model performance metrics
     - Feature importance analysis
     
-    **3. Prediction**
-    - Make custom predictions by selecting input values
-    - Choose between different machine learning models
-    - View prediction confidence levels
+    ### Prediction Section
     
-    **4. Reports**
-    - View dataset statistics
-    - See column information and data types
+    To make predictions:
+    1. Select a machine learning model
+    2. Set the input parameters
+    3. Click "Predict Severity"
+    4. View the results
     
-    **5. Help**
-    - This user manual page
+    ### Technical Information
+    
+    The application uses the following machine learning models:
+    - Logistic Regression
+    - Random Forest
+    - XGBoost
+    - Artificial Neural Network
+    
+    All visualizations use a consistent dark theme for better readability.
     """)
 
 # --- Admin Page ---
 elif page == "Admin":
-    st.title("Admin Dashboard")
+    st.title("Administration Dashboard")
     
     # Simple password protection
-    password = st.text_input("Enter Admin Password:", type="password")
+    password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
     
     if password != "admin1":
         st.error("Incorrect password. Access denied.")
         st.stop()  # This stops execution if password is wrong
     
-    st.warning("You are in admin mode. Changes here will affect all users.")
+    st.warning("You are in administrator mode. Changes here will affect all users.")
     
-    st.subheader("Upload New Dataset")
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    st.subheader("Dataset Management")
+    with st.expander("Upload New Dataset"):
+        uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
+        
+        if uploaded_file is not None:
+            st.info("File uploaded successfully. Click the button below to update the system.")
+            if st.button("Update System with New Dataset", key="update_dataset"):
+                with st.spinner("Processing new dataset and retraining models..."):
+                    handle_dataset_upload(uploaded_file)
     
-    if uploaded_file is not None:
-        st.info("File uploaded successfully. Click the button below to update the system.")
-        if st.button("Update System with New Dataset"):
-            with st.spinner("Processing new dataset and retraining models..."):
-                handle_dataset_upload(uploaded_file)
+    st.subheader("System Information")
+    info_col1, info_col2 = st.columns(2)
     
-    st.subheader("Current System Information")
-    st.write(f"Current target variable: {st.session_state.target_col}")
-    st.write(f"Number of features: {len(st.session_state.X.columns) if st.session_state.X is not None else 0}")
-    st.write(f"Number of models: {len(st.session_state.models)}")
+    with info_col1:
+        st.metric("Current Target Variable", st.session_state.target_col)
+        st.metric("Number of Features", len(st.session_state.X.columns) if st.session_state.X is not None else 0)
     
-    st.subheader("Reset to Default Dataset")
-    if st.button("Reset System"):
+    with info_col2:
+        st.metric("Number of Models", len(st.session_state.models))
+        st.metric("Dataset Rows", len(st.session_state.current_df))
+    
+    st.subheader("System Maintenance")
+    if st.button("Reset to Default Dataset", key="reset_system"):
         with st.spinner("Resetting to default dataset..."):
             df, label_encoders, target_col = load_default_data()
             X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
@@ -612,4 +729,4 @@ elif page == "Admin":
             st.session_state.y_test = y_test
             st.session_state.target_col = target_col
             
-            st.success("System reset to default dataset!")
+            st.success("System reset to default dataset completed!")
