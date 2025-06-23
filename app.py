@@ -24,9 +24,12 @@ PALETTE = sns.color_palette("Set2")
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. 
+Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers 
+enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
  
-This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
+This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful 
+data to improve road safety and management.
 """
 
 # --- Session State for Dynamic Updates ---
@@ -93,7 +96,7 @@ def preprocess_data(df):
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
     
-    # Try to identify location data - case insensitive search
+    # Improved location data handling
     location_col = None
     for col in df.columns:
         if 'location' in col.lower():
@@ -101,18 +104,35 @@ def preprocess_data(df):
             break
     
     if location_col:
-        df['Location_Original'] = df[location_col]  # Preserve original for mapping
-        # Extract latitude and longitude from the location string
+        df['Location_Original'] = df[location_col]  # Preserve original
+        
+        # Initialize empty coordinate columns
+        df['latitude'] = np.nan
+        df['longitude'] = np.nan
+        
         try:
-            # Remove parentheses and split on comma
-            loc_split = df[location_col].str.strip('()').str.split(',', expand=True)
-            if loc_split.shape[1] == 2:
-                df['latitude'] = pd.to_numeric(loc_split[0].str.strip(), errors='coerce')
-                df['longitude'] = pd.to_numeric(loc_split[1].str.strip(), errors='coerce')
-                # Drop rows where coordinates couldn't be parsed
-                df.dropna(subset=['latitude', 'longitude'], inplace=True)
+            # Try different parsing methods
+            if df[location_col].str.contains(r'\(.*,.*\)').any():
+                # Handle (lat, long) format
+                coords = df[location_col].str.extract(r'\(([-\d.]+),\s*([-\d.]+)\)')
+                df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
+                df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
+            else:
+                # Try splitting on comma if no parentheses
+                coords = df[location_col].str.split(',', expand=True)
+                if coords.shape[1] >= 2:
+                    df['latitude'] = pd.to_numeric(coords[0].str.strip(), errors='coerce')
+                    df['longitude'] = pd.to_numeric(coords[1].str.strip(), errors='coerce')
+            
+            # Count how many coordinates were successfully parsed
+            valid_coords = df[['latitude', 'longitude']].notna().all(axis=1).sum()
+            st.info(f"Successfully parsed {valid_coords}/{len(df)} location coordinates")
+            
+            # Drop rows where coordinates couldn't be parsed
+            df.dropna(subset=['latitude', 'longitude'], inplace=True)
+            
         except Exception as e:
-            st.warning(f"Could not parse location data: {str(e)}")
+            st.warning(f"Location parsing error: {str(e)}")
     
     # Try to identify target column
     target_col = st.session_state.target_col
@@ -291,19 +311,20 @@ elif page == "Data Analysis":
     if 'latitude' in df.columns and 'longitude' in df.columns:
         coords = df[['latitude', 'longitude']].dropna()
         if not coords.empty:
-            # Sample the data if too large for better performance
             if len(coords) > 1000:
                 coords = coords.sample(n=1000, random_state=42)
+                st.info("Displaying 1,000 random locations for better performance")
             st.map(coords)
-            st.write(f"Displaying {len(coords)} accident locations")
+            st.write(f"Showing {len(coords)} accident locations")
         else:
-            st.warning("No valid geographic coordinates found.")
-    elif 'Location_Original' in df.columns:
-        st.warning("Could not parse location coordinates. Original location data available but not in mappable format.")
-        st.write("Sample location values:")
-        st.write(df['Location_Original'].head())
+            st.warning("No valid coordinates found in location data")
+            
+            # Show raw location data samples if available
+            if 'Location_Original' in df.columns:
+                st.write("Sample raw location data:")
+                st.write(df['Location_Original'].head())
     else:
-        st.warning("No location data found in dataset.")
+        st.warning("No location data columns found in dataset")
     st.divider()
 
     st.subheader("➥ Correlation Heatmap")
