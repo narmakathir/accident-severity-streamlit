@@ -21,13 +21,83 @@ warnings.filterwarnings('ignore')
 
 # --- Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
-sns.set_style("whitegrid")
-PALETTE = sns.color_palette("Set2")
+
+# Dark theme colors
+DARK_BACKGROUND = "#0E1117"
+DARK_CONTAINER = "#1E1E1E"
+DARK_TEXT = "#FAFAFA"
+ACCENT_COLOR = "#1F77B4"
+SECONDARY_COLOR = "#FF7F0E"
+TERTIARY_COLOR = "#2CA02C"
+
+# Set dark theme for matplotlib
+plt.style.use('dark_background')
+sns.set_style("darkgrid")
+sns.set_palette([ACCENT_COLOR, SECONDARY_COLOR, TERTIARY_COLOR])
+
+# Custom CSS for dark theme
+st.markdown(f"""
+    <style>
+        .stApp {{
+            background-color: {DARK_BACKGROUND};
+            color: {DARK_TEXT};
+        }}
+        .css-1d391kg, .st-bb, .st-at, .st-ax, .st-ay, .st-az, .st-b0, .st-b1, .st-b2, .st-b3, .st-b4, .st-b5, .st-b6 {{
+            background-color: {DARK_CONTAINER};
+        }}
+        .css-1aumxhk {{
+            background-color: {DARK_BACKGROUND};
+            color: {DARK_TEXT};
+        }}
+        .st-b7, .st-b8, .st-b9, .st-ba {{
+            background-color: {DARK_CONTAINER};
+        }}
+        .css-1v3fvcr {{
+            color: {DARK_TEXT};
+        }}
+        .css-qrbaxs {{
+            color: {DARK_TEXT};
+        }}
+        .css-1v0mbdj {{
+            border: 1px solid {DARK_CONTAINER};
+        }}
+        .css-1cpxqw2 {{
+            border: 1px solid {DARK_CONTAINER};
+        }}
+        .st-ck {{
+            color: {DARK_TEXT};
+        }}
+        .st-cl {{
+            color: {DARK_TEXT};
+        }}
+        .st-cm {{
+            color: {DARK_TEXT};
+        }}
+        .st-cn {{
+            color: {DARK_TEXT};
+        }}
+        .st-bh {{
+            color: {DARK_TEXT};
+        }}
+        .st-bi {{
+            color: {DARK_TEXT};
+        }}
+        .st-bj {{
+            color: {DARK_TEXT};
+        }}
+        .st-bk {{
+            color: {DARK_TEXT};
+        }}
+        .st-bl {{
+            color: {DARK_TEXT};
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
 Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
- 
+
 This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
 """
 
@@ -262,17 +332,17 @@ if page == "Home":
 # --- Data Analysis ---
 elif page == "Data Analysis":
     st.title("Data Analysis & Insights")
-    st.markdown("*Explore key patterns and model performance.*")
+    st.markdown("Explore key patterns and model performance.")
     st.divider()
 
     # Get current data from session state
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
-    st.subheader("➥ Target Variable Distribution")
+    st.subheader("Target Variable Distribution")
     if st.session_state.target_col in df.columns:
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
+        sns.countplot(x=st.session_state.target_col, data=df, ax=ax)
         
         # Add severity level labels
         severity_labels = {
@@ -296,7 +366,7 @@ elif page == "Data Analysis":
         st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
     st.divider()
 
-    st.subheader("➥ Hotspot Location")
+    st.subheader("Hotspot Location")
     if 'latitude' in df.columns and 'longitude' in df.columns:
         # Create Folium map with dark tiles
         m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
@@ -345,11 +415,11 @@ elif page == "Data Analysis":
             st.warning("No location data found in dataset.")
     st.divider()
 
-    st.subheader("➥ Correlation Heatmap")
+    st.subheader("Correlation Heatmap")
     try:
         corr = df.select_dtypes(['number']).corr()
         fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr, cmap='YlGnBu', annot=False, ax=ax)
+        sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax)
         ax.set_title("Correlation Heatmap")
         st.pyplot(fig)
     except:
@@ -357,7 +427,7 @@ elif page == "Data Analysis":
     st.divider()
 
     if not st.session_state.scores_df.empty:
-        st.subheader("➥ Model Performance")
+        st.subheader("Model Performance")
         # Format the scores to show 2 decimal places
         formatted_scores = st.session_state.scores_df.copy()
         for col in formatted_scores.columns[1:]:
@@ -365,17 +435,17 @@ elif page == "Data Analysis":
         st.table(formatted_scores)
         st.divider()
 
-        st.subheader("➥ Model Comparison Bar Chart")
+        st.subheader("Model Comparison Bar Chart")
         performance_df = st.session_state.scores_df.set_index('Model')
         fig, ax = plt.subplots()
-        performance_df.plot(kind='bar', ax=ax, color=PALETTE.as_hex())
+        performance_df.plot(kind='bar', ax=ax)
         ax.set_title('Model Comparison')
         ax.set_ylabel('Score (%)')
         ax.grid(True, linestyle='--', alpha=0.6)
         st.pyplot(fig)
         st.divider()
 
-        st.subheader("➥ Model-Specific Feature Importances")
+        st.subheader("Model-Specific Feature Importances")
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
         
         if model_name in st.session_state.models:
@@ -400,7 +470,7 @@ elif page == "Data Analysis":
                 top_vals = importances_vals[sorted_idx][:n_features]
 
                 fig, ax = plt.subplots()
-                sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
+                sns.barplot(x=top_vals, y=top_features, ax=ax)
                 ax.set_title(f'{model_name} Top {n_features} Features')
                 st.pyplot(fig)
             except Exception as e:
@@ -441,18 +511,18 @@ elif page == "Prediction":
                 else:
                     severity_label = prediction
 
-                st.success(f"**Predicted {st.session_state.target_col}:** {severity_label}")
-                st.info(f"**Confidence:** {confidence:.2f}%")
+                st.success(f"Predicted {st.session_state.target_col}: {severity_label}")
+                st.info(f"Confidence: {confidence:.2f}%")
             except Exception as e:
                 st.error(f"Prediction failed: {str(e)}")
 
 # --- Reports ---
 elif page == "Reports":
     st.title("Dataset Reports")
-    st.write("### Dataset Summary")
+    st.write("Dataset Summary")
     st.dataframe(st.session_state.current_df.describe())
     
-    st.write("### Column Information")
+    st.write("Column Information")
     col_info = pd.DataFrame({
         'Column': st.session_state.current_df.columns,
         'Data Type': st.session_state.current_df.dtypes,
