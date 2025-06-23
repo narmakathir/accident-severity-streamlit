@@ -24,8 +24,9 @@ def set_dark_theme():
     # Set seaborn style
     sns.set_style("darkgrid")
     
-    # Using coolwarm color palette
-    PALETTE = sns.color_palette("coolwarm")
+    # Custom color palette
+    PALETTE = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+               '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
     # Set matplotlib rcParams
     plt.rcParams['figure.facecolor'] = '#0E1117'
@@ -44,7 +45,7 @@ PALETTE = set_dark_theme()
 # --- Streamlit Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
-# Custom CSS for dark theme with button navigation
+# Custom CSS for dark theme and navigation buttons
 st.markdown("""
 <style>
     /* Main page background */
@@ -53,10 +54,42 @@ st.markdown("""
         color: white;
     }
     
-    /* Sidebar background */
+    /* Sidebar styling */
     .css-1d391kg {
         background-color: #0E1117;
         border-right: 1px solid #2A3459;
+        padding-top: 1rem;
+    }
+    
+    /* Navigation buttons container */
+    .nav-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    /* Navigation buttons */
+    .nav-btn {
+        background-color: #1E2130;
+        color: white;
+        border: 1px solid #2A3459;
+        border-radius: 4px;
+        padding: 0.5rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        width: 100%;
+    }
+    
+    .nav-btn:hover {
+        background-color: #2A3459;
+        border-color: #3B4877;
+    }
+    
+    .nav-btn.active {
+        background-color: #3B4877;
+        border-color: #4A5B8C;
+        font-weight: bold;
     }
     
     /* Widgets */
@@ -106,36 +139,11 @@ st.markdown("""
         background-color: #1E2130;
         color: white;
         border-color: #2A3459;
-        width: 100%;
-        margin: 5px 0;
     }
     
     .stButton>button:hover {
         background-color: #2A3459;
         color: white;
-    }
-    
-    /* Navigation button styling */
-    .nav-button {
-        background-color: #1E2130;
-        color: white;
-        border: 1px solid #2A3459;
-        border-radius: 4px;
-        padding: 10px 15px;
-        margin: 5px 0;
-        width: 100%;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    
-    .nav-button:hover {
-        background-color: #2A3459;
-    }
-    
-    .nav-button.active {
-        background-color: #3A4D8F;
-        font-weight: bold;
     }
     
     /* Success, info, warning, error boxes */
@@ -144,20 +152,19 @@ st.markdown("""
         border-color: #2A3459;
     }
     
-    /* Card styling */
+    /* Card styling for sections */
     .card {
         background-color: #1E2130;
         border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
         border: 1px solid #2A3459;
     }
     
     .card-title {
-        font-size: 1.2em;
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #4A8DF8;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        color: #ff7f0e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -170,6 +177,9 @@ This project uses machine learning techniques to analyze past traffic data for a
 """
 
 # --- Session State for Dynamic Updates ---
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+
 if 'current_df' not in st.session_state:
     st.session_state.current_df = None
 if 'label_encoders' not in st.session_state:
@@ -182,23 +192,43 @@ if 'target_col' not in st.session_state:
     st.session_state.target_col = 'Injury Severity'
 if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Home"
 
-# --- Navigation Functions ---
-def navigate_to(page):
-    st.session_state.current_page = page
-
-def create_nav_button(page_name, current_page):
-    button_style = "active" if current_page == page_name else ""
-    st.markdown(
-        f"""
-        <div class="nav-button {button_style}" onclick="navigate_to('{page_name}')">
-            {page_name}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+# --- Navigation Buttons ---
+def navigation():
+    st.sidebar.markdown("## Navigation")
+    
+    # Navigation buttons container
+    st.sidebar.markdown('<div class="nav-container">', unsafe_allow_html=True)
+    
+    # Home button
+    if st.sidebar.button('Home', key='nav_home'):
+        st.session_state.current_page = "Home"
+    
+    # Data Analysis button
+    if st.sidebar.button('Data Analysis', key='nav_analysis'):
+        st.session_state.current_page = "Data Analysis"
+    
+    # Prediction button
+    if st.sidebar.button('Prediction', key='nav_prediction'):
+        st.session_state.current_page = "Prediction"
+    
+    # Reports button
+    if st.sidebar.button('Reports', key='nav_reports'):
+        st.session_state.current_page = "Reports"
+    
+    # Help button
+    if st.sidebar.button('Help', key='nav_help'):
+        st.session_state.current_page = "Help"
+    
+    # Admin mode toggle
+    admin_mode = st.sidebar.checkbox("Admin Mode")
+    st.session_state.admin_mode = admin_mode
+    
+    # Admin button (only visible in admin mode)
+    if admin_mode and st.sidebar.button('Admin', key='nav_admin'):
+        st.session_state.current_page = "Admin"
+    
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 # --- Normalize Text Values ---
 def normalize_categories(df, custom_mappings=None):
@@ -394,59 +424,36 @@ def handle_dataset_upload(uploaded_file):
     except Exception as e:
         st.error(f"Error processing uploaded file: {str(e)}")
 
-# --- Sidebar Navigation ---
-st.sidebar.title("Navigation")
+# --- Render Navigation ---
+navigation()
 
-# Add admin mode toggle
-if st.sidebar.checkbox("Admin Mode"):
-    st.session_state.admin_mode = True
-    pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help", "Admin"]
-else:
-    st.session_state.admin_mode = False
-    pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
-
-# Create navigation buttons
-for page in pages:
-    if st.sidebar.button(page, key=f"nav_{page}"):
-        navigate_to(page)
-
-# Add some space and version info
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
-<div style="color: #7A7A7A; font-size: 0.8em;">
-Accident Severity Predictor<br>
-Final Year Project
-</div>
-""", unsafe_allow_html=True)
-
-# --- Page Content ---
+# --- Home ---
 if st.session_state.current_page == "Home":
     st.title("Traffic Accident Severity Prediction")
     st.markdown(PROJECT_OVERVIEW)
-
+    
     with st.container():
-        st.subheader("Dataset Preview")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Sample Data</div>
-            <p>Below is a preview of the dataset being used for analysis and predictions.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Dataset Preview</div>', unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.copy().head())
+        st.markdown('</div>', unsafe_allow_html=True)
 
+# --- Data Analysis ---
 elif st.session_state.current_page == "Data Analysis":
     st.title("Data Analysis & Insights")
-    st.markdown("*Explore key patterns and model performance.*")
+    st.markdown("Explore key patterns and model performance.")
     
     # Get current data from session state
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
     with st.container():
-        st.subheader("Target Variable Distribution")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Target Variable Distribution</div>', unsafe_allow_html=True)
+        
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
-            sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
+            sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette=PALETTE)
             
             # Add severity level labels
             severity_labels = {
@@ -468,9 +475,12 @@ elif st.session_state.current_page == "Data Analysis":
             st.pyplot(fig)
         else:
             st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Accident Hotspot Locations")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Accident Hotspot Locations</div>', unsafe_allow_html=True)
+        
         if 'latitude' in df.columns and 'longitude' in df.columns:
             # Create Folium map with dark tiles
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
@@ -492,9 +502,12 @@ elif st.session_state.current_page == "Data Analysis":
             folium_static(m, width=1000, height=600)
         else:
             st.warning("No location data found in dataset.")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Feature Correlation Heatmap")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Feature Correlation Heatmap</div>', unsafe_allow_html=True)
+        
         try:
             corr = df.select_dtypes(['number']).corr()
             fig, ax = plt.subplots(figsize=(12, 10))
@@ -504,10 +517,13 @@ elif st.session_state.current_page == "Data Analysis":
             st.pyplot(fig)
         except Exception as e:
             st.warning(f"Could not generate correlation heatmap: {str(e)}")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     if not st.session_state.scores_df.empty:
         with st.container():
-            st.subheader("Model Performance Metrics")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-title">Model Performance Metrics</div>', unsafe_allow_html=True)
+            
             # Format the scores to show 2 decimal places
             formatted_scores = st.session_state.scores_df.copy()
             for col in formatted_scores.columns[1:]:
@@ -519,21 +535,27 @@ elif st.session_state.current_page == "Data Analysis":
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
+            st.markdown('</div>', unsafe_allow_html=True)
         
         with st.container():
-            st.subheader("Model Performance Comparison")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-title">Model Performance Comparison</div>', unsafe_allow_html=True)
+            
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
-            performance_df.plot(kind='bar', ax=ax, cmap='coolwarm')
+            performance_df.plot(kind='bar', ax=ax, color=PALETTE)
             ax.set_title('Model Performance Comparison', color='white', pad=20)
             ax.set_ylabel('Score (%)', color='white')
             ax.set_xlabel('Model', color='white')
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
+            st.markdown('</div>', unsafe_allow_html=True)
         
         with st.container():
-            st.subheader("Feature Importance Analysis")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-title">Feature Importance Analysis</div>', unsafe_allow_html=True)
+            
             model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
             
             if model_name in st.session_state.models:
@@ -558,28 +580,29 @@ elif st.session_state.current_page == "Data Analysis":
                     top_vals = importances_vals[sorted_idx][:n_features]
 
                     fig, ax = plt.subplots(figsize=(10, 6))
-                    sns.barplot(x=top_vals, y=top_features, ax=ax, palette="coolwarm")
+                    sns.barplot(x=top_vals, y=top_features, ax=ax, palette=PALETTE)
                     ax.set_title(f'{model_name} - Top {n_features} Features', color='white', pad=20)
                     ax.set_xlabel('Importance Score', color='white')
                     ax.set_ylabel('Feature', color='white')
                     st.pyplot(fig)
                 except Exception as e:
                     st.warning(f"Could not display feature importances: {str(e)}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
+# --- Prediction ---
 elif st.session_state.current_page == "Prediction":
     st.title("Accident Severity Prediction")
-    st.markdown("*Make custom predictions by selecting input values below.*")
+    st.markdown("Make custom predictions by selecting input values below.")
     
     if not st.session_state.models:
         st.warning("No models available for prediction. Please check the Data Analysis page.")
     else:
         with st.container():
-            st.subheader("Model Selection")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
             selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
             model = st.session_state.models[selected_model]
             
-        with st.container():
-            st.subheader("Input Parameters")
+            st.markdown('<div class="card-title">Input Parameters</div>', unsafe_allow_html=True)
             col1, col2 = st.columns(2)
             
             input_data = {}
@@ -617,72 +640,54 @@ elif st.session_state.current_page == "Prediction":
                         severity_label = prediction
 
                     # Display prediction results
-                    with st.container():
-                        st.subheader("Prediction Results")
+                    st.markdown('<div class="card-title">Prediction Results</div>', unsafe_allow_html=True)
+                    
+                    # Create columns for better layout
+                    res_col1, res_col2 = st.columns(2)
+                    
+                    with res_col1:
+                        st.metric(label="Predicted Severity", value=severity_label)
+                    
+                    with res_col2:
+                        st.metric(label="Confidence Level", value=f"{confidence:.2f}%")
+                    
+                    # Show probability distribution
+                    if st.session_state.target_col in st.session_state.label_encoders:
+                        st.markdown('<div class="card-title">Probability Distribution</div>', unsafe_allow_html=True)
+                        prob_df = pd.DataFrame({
+                            'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
+                            'Probability': probs * 100
+                        })
                         
-                        # Create columns for better layout
-                        res_col1, res_col2 = st.columns(2)
-                        
-                        with res_col1:
-                            st.markdown(f"""
-                            <div class="card">
-                                <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #4A8DF8;">{severity_label}</h2>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with res_col2:
-                            st.markdown(f"""
-                            <div class="card">
-                                <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Show probability distribution
-                        if st.session_state.target_col in st.session_state.label_encoders:
-                            st.subheader("Probability Distribution")
-                            prob_df = pd.DataFrame({
-                                'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
-                                'Probability': probs * 100
-                            })
-                            
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
-                                        ax=ax, palette="coolwarm")
-                            ax.set_title('Severity Probability Distribution', color='white')
-                            ax.set_xlabel('Severity Level', color='white')
-                            ax.set_ylabel('Probability (%)', color='white')
-                            st.pyplot(fig)
+                        fig, ax = plt.subplots(figsize=(10, 4))
+                        sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
+                                    ax=ax, palette=PALETTE)
+                        ax.set_title('Severity Probability Distribution', color='white')
+                        ax.set_xlabel('Severity Level', color='white')
+                        ax.set_ylabel('Probability (%)', color='white')
+                        st.pyplot(fig)
                     
                 except Exception as e:
                     st.error(f"Prediction failed: {str(e)}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
+# --- Reports ---
 elif st.session_state.current_page == "Reports":
     st.title("Dataset Reports")
     
     with st.container():
-        st.subheader("Dataset Summary Statistics")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Statistical Overview</div>
-            <p>Basic statistics for numerical columns in the dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Dataset Summary Statistics</div>', unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
             'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Column Information")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Column Details</div>
-            <p>Information about each column in the dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Column Information</div>', unsafe_allow_html=True)
         col_info = pd.DataFrame({
             'Column': st.session_state.current_df.columns,
             'Data Type': st.session_state.current_df.dtypes,
@@ -693,15 +698,11 @@ elif st.session_state.current_page == "Reports":
             'color': 'white',
             'border-color': '#2A3459'
         }))
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Missing Values Report")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Data Completeness</div>
-            <p>Analysis of missing values in the dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Missing Values Report</div>', unsafe_allow_html=True)
         missing_data = st.session_state.current_df.isnull().sum()
         missing_data = missing_data[missing_data > 0]
         if len(missing_data) > 0:
@@ -709,77 +710,74 @@ elif st.session_state.current_page == "Reports":
             st.dataframe(missing_data.reset_index().rename(columns={'index': 'Column', 0: 'Missing Values'}))
         else:
             st.success("No missing values found in the dataset.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
+# --- Help Page ---
 elif st.session_state.current_page == "Help":
     st.title("User Guide")
     
     with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Application Overview</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div class="card">
-            <div class="card-title">Application Overview</div>
-            <p>This application provides tools for analyzing traffic accident data and predicting accident severity using machine learning models.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        This application provides tools for analyzing traffic accident data and predicting accident severity using machine learning models.
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Navigation Guide")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Navigation Guide</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div class="card">
-            <p>Use the sidebar to navigate between different sections:</p>
-            <ul>
-                <li><b>Home</b>: Project overview and dataset preview</li>
-                <li><b>Data Analysis</b>: Visualizations and insights from the data</li>
-                <li><b>Prediction</b>: Make custom severity predictions</li>
-                <li><b>Reports</b>: View detailed dataset information</li>
-                <li><b>Help</b>: This user guide</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        Use the sidebar to navigate between different sections:
+        
+        - **Home**: Project overview and dataset preview
+        - **Data Analysis**: Visualizations and insights from the data
+        - **Prediction**: Make custom severity predictions
+        - **Reports**: View detailed dataset information
+        - **Help**: This user guide
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Data Analysis Section")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Data Analysis Section</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div class="card">
-            <p>The Data Analysis page includes:</p>
-            <ul>
-                <li>Target variable distribution</li>
-                <li>Accident location hotspots</li>
-                <li>Feature correlation analysis</li>
-                <li>Model performance metrics</li>
-                <li>Feature importance analysis</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        The Data Analysis page includes:
+        - Target variable distribution
+        - Accident location hotspots
+        - Feature correlation analysis
+        - Model performance metrics
+        - Feature importance analysis
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Prediction Section")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Prediction Section</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div class="card">
-            <p>To make predictions:</p>
-            <ol>
-                <li>Select a machine learning model</li>
-                <li>Set the input parameters</li>
-                <li>Click "Predict Severity"</li>
-                <li>View the results</li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
+        To make predictions:
+        1. Select a machine learning model
+        2. Set the input parameters
+        3. Click "Predict Severity"
+        4. View the results
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("Technical Information")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Technical Information</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div class="card">
-            <p>The application uses the following machine learning models:</p>
-            <ul>
-                <li>Logistic Regression</li>
-                <li>Random Forest</li>
-                <li>XGBoost</li>
-                <li>Artificial Neural Network</li>
-            </ul>
-            <p>All visualizations use a consistent dark theme for better readability.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        The application uses the following machine learning models:
+        - Logistic Regression
+        - Random Forest
+        - XGBoost
+        - Artificial Neural Network
+        
+        All visualizations use a consistent dark theme for better readability.
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
 
+# --- Admin Page ---
 elif st.session_state.current_page == "Admin":
     st.title("Administration Dashboard")
     
@@ -793,64 +791,37 @@ elif st.session_state.current_page == "Admin":
     st.warning("You are in administrator mode. Changes here will affect all users.")
     
     with st.container():
-        st.subheader("Dataset Management")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Upload New Dataset</div>
-            <p>Upload a new CSV file to update the system dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Dataset Management</div>', unsafe_allow_html=True)
         
-        uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
-        
-        if uploaded_file is not None:
-            st.info("File uploaded successfully. Click the button below to update the system.")
-            if st.button("Update System with New Dataset", key="update_dataset"):
-                with st.spinner("Processing new dataset and retraining models..."):
-                    handle_dataset_upload(uploaded_file)
+        with st.expander("Upload New Dataset"):
+            uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
+            
+            if uploaded_file is not None:
+                st.info("File uploaded successfully. Click the button below to update the system.")
+                if st.button("Update System with New Dataset", key="update_dataset"):
+                    with st.spinner("Processing new dataset and retraining models..."):
+                        handle_dataset_upload(uploaded_file)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("System Information")
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">System Information</div>', unsafe_allow_html=True)
+        
         info_col1, info_col2 = st.columns(2)
         
         with info_col1:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Current Target Variable</div>
-                <h3>{st.session_state.target_col}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Features</div>
-                <h3>{len(st.session_state.X.columns) if st.session_state.X is not None else 0}</h3>
-            </div>
-            """, unsafe_allow_html=True)
+            st.metric("Current Target Variable", st.session_state.target_col)
+            st.metric("Number of Features", len(st.session_state.X.columns) if st.session_state.X is not None else 0)
         
         with info_col2:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Models</div>
-                <h3>{len(st.session_state.models)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Dataset Rows</div>
-                <h3>{len(st.session_state.current_df)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
+            st.metric("Number of Models", len(st.session_state.models))
+            st.metric("Dataset Rows", len(st.session_state.current_df))
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():
-        st.subheader("System Maintenance")
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Reset System</div>
-            <p>Reset to the default dataset configuration.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">System Maintenance</div>', unsafe_allow_html=True)
         
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
@@ -871,12 +842,4 @@ elif st.session_state.current_page == "Admin":
                 st.session_state.target_col = target_col
                 
                 st.success("System reset to default dataset completed!")
-
-# Add JavaScript for navigation
-st.markdown("""
-<script>
-function navigate_to(page) {
-    window.location.href = window.location.pathname + "?page=" + page;
-}
-</script>
-""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
