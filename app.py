@@ -26,9 +26,9 @@ PALETTE = sns.color_palette("Set2")
 
 # --- Project Overview ---
 PROJECT_OVERVIEW = """
-Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses. 
- 
-This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.
+Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. 
+Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers 
+enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.
 """
 
 # --- Session State for Dynamic Updates ---
@@ -108,7 +108,6 @@ def preprocess_data(df):
     # Try to identify target column
     target_col = st.session_state.target_col
     if target_col not in df.columns:
-        # Try to find similar column
         possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
         if possible_targets:
             target_col = possible_targets[0]
@@ -194,25 +193,18 @@ if st.session_state.current_df is None:
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
     try:
-        # Save uploaded file to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
             tmp_path = tmp_file.name
         
-        # Read the CSV file
         new_df = pd.read_csv(tmp_path)
-        
-        # Clean up the temporary file
         os.unlink(tmp_path)
         
-        # Preprocess the new dataset
         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
         new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
         
-        # Train models on new data
         new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
         
-        # Update session state
         st.session_state.current_df = new_df
         st.session_state.label_encoders = new_label_encoders
         st.session_state.models = new_models
@@ -225,7 +217,7 @@ def handle_dataset_upload(uploaded_file):
         st.session_state.y_test = new_y_test
         st.session_state.target_col = new_target_col
         
-        st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
+        st.success("Dataset updated successfully!")
         
     except Exception as e:
         st.error(f"Error processing uploaded file: {str(e)}")
@@ -264,7 +256,6 @@ elif page == "Data Analysis":
     st.markdown("*Explore key patterns and model performance.*")
     st.divider()
 
-    # Get current data from session state
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
     
@@ -279,60 +270,60 @@ elif page == "Data Analysis":
     st.divider()
 
     st.subheader("➥ Hotspot Location")
-    if 'Location' in df.columns:
-    try:
-        # Convert to string and clean the data
-        df['Location'] = df['Location'].astype(str).str.strip()
-        
-        # Extract coordinates using precise regex pattern
-        coords = df['Location'].str.extract(r'\(([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)\)')
-        coords.columns = ['latitude', 'longitude']
-        
-        # Convert to numeric and drop invalid entries
-        coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
-        coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
-        coords = coords.dropna()
-        
-        if not coords.empty:
-            # Create Folium map
-            m = folium.Map(
-                location=[coords['latitude'].mean(), coords['longitude'].mean()],
-                zoom_start=11,
-                tiles='CartoDB dark_matter'
-            )
+    if 'Location_Original' in df.columns:
+        try:
+            # Convert to string and clean the data
+            df['Location_Original'] = df['Location_Original'].astype(str).str.strip()
             
-            # Add markers (sampling if too many points)
-            sample_size = min(1000, len(coords))
-            for idx, row in coords.sample(sample_size).iterrows():
-                folium.CircleMarker(
-                    location=[row['latitude'], row['longitude']],
-                    radius=5,
-                    color='red',
-                    fill=True,
-                    fill_color='red',
-                    fill_opacity=0.7,
-                    popup=f"Lat: {row['latitude']:.6f}, Long: {row['longitude']:.6f}"
-                ).add_to(m)
+            # Extract coordinates using precise regex pattern
+            coords = df['Location_Original'].str.extract(r'\(([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)\)')
+            coords.columns = ['latitude', 'longitude']
             
-            # Display the map
-            folium_static(m, width=1000, height=600)
+            # Convert to numeric and drop invalid entries
+            coords['latitude'] = pd.to_numeric(coords['latitude'], errors='coerce')
+            coords['longitude'] = pd.to_numeric(coords['longitude'], errors='coerce')
+            coords = coords.dropna()
             
-            # Show success message with stats
-            st.success(f"Mapped {len(coords)} locations successfully!")
-        else:
-            st.warning("No valid coordinates found in Location column.")
-            
-    except Exception as e:
-        st.error(f"Error processing location data: {str(e)}")
-        # Debug view
-        with st.expander("Show raw location data for debugging"):
-            st.write("First 10 location values:")
-            st.write(df['Location'].head(10))
-            st.write("First 10 extracted coordinates:")
-            st.write(coords.head(10))
-else:
-    st.warning("No 'Location' column found in the dataset.")
-st.divider()
+            if not coords.empty:
+                # Create Folium map
+                m = folium.Map(
+                    location=[coords['latitude'].mean(), coords['longitude'].mean()],
+                    zoom_start=11,
+                    tiles='CartoDB dark_matter'
+                )
+                
+                # Add markers (sampling if too many points)
+                sample_size = min(1000, len(coords))
+                for idx, row in coords.sample(sample_size).iterrows():
+                    folium.CircleMarker(
+                        location=[row['latitude'], row['longitude']],
+                        radius=5,
+                        color='red',
+                        fill=True,
+                        fill_color='red',
+                        fill_opacity=0.7,
+                        popup=f"Lat: {row['latitude']:.6f}, Long: {row['longitude']:.6f}"
+                    ).add_to(m)
+                
+                # Display the map
+                folium_static(m, width=1000, height=600)
+                
+                # Show success message with stats
+                st.success(f"Mapped {len(coords)} locations successfully!")
+            else:
+                st.warning("No valid coordinates found in Location column.")
+                
+        except Exception as e:
+            st.error(f"Error processing location data: {str(e)}")
+            # Debug view
+            with st.expander("Show raw location data for debugging"):
+                st.write("First 10 location values:")
+                st.write(df['Location_Original'].head(10))
+                st.write("First 10 extracted coordinates:")
+                st.write(coords.head(10))
+    else:
+        st.warning("No 'Location_Original' column found in the dataset.")
+    st.divider()
 
     st.subheader("➥ Correlation Heatmap")
     try:
@@ -379,7 +370,6 @@ st.divider()
                 importances_vals = importances / importances.sum()
                 sorted_idx = np.argsort(importances_vals)[::-1]
                 
-                # Ensure we don't try to access more features than available
                 n_features = min(10, len(st.session_state.X.columns))
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
                 top_vals = importances_vals[sorted_idx][:n_features]
@@ -408,7 +398,6 @@ elif page == "Prediction":
                 choice = st.selectbox(f"{col}", options)
                 input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
             else:
-                # Get min/max from the original dataframe (before scaling)
                 col_min = st.session_state.current_df[col].min()
                 col_max = st.session_state.current_df[col].max()
                 col_mean = st.session_state.current_df[col].mean()
@@ -453,12 +442,11 @@ elif page == "Reports":
 elif page == "Admin":
     st.title("Admin Dashboard")
     
-    # Simple password protection
     password = st.text_input("Enter Admin Password:", type="password")
     
     if password != "admin1":
         st.error("Incorrect password. Access denied.")
-        st.stop()  # This stops execution if password is wrong
+        st.stop()
     
     st.warning("You are in admin mode. Changes here will affect all users.")
     
