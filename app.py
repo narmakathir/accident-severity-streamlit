@@ -242,22 +242,31 @@ def preprocess_data(df):
     
     # Data cleaning - matching Jupyter notebook
     df.drop_duplicates(inplace=True)
-    df.fillna(df.median(numeric_only=True), inplace=True)
-    df.fillna(df.mode().iloc[0], inplace=True)
+    
+    # Handle missing values - matching Jupyter notebook
+    numeric_cols = df.select_dtypes(include='number').columns
+    if not numeric_cols.empty:
+        df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
+    
+    # Fill remaining categorical columns with mode
+    cat_cols = df.select_dtypes(include='object').columns
+    if not cat_cols.empty:
+        df[cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
 
     # Feature engineering - matching Jupyter notebook
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':  # Skip location column for encoding
             le = LabelEncoder()
-            df[col] = le.fit_transform(df[col])
+            df[col] = le.fit_transform(df[col].astype(str))
             label_encoders[col] = le
 
     # Normalize numeric columns - matching Jupyter notebook
     target_col = 'Injury Severity'
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
     scaler = StandardScaler()
-    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    if not numeric_cols.empty:
+        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
     # Extract coordinates - matching Jupyter notebook
     if 'Location' in df.columns:
@@ -272,7 +281,7 @@ def preprocess_data(df):
 
 def prepare_model_data(df, target_col):
     # Feature and target split - matching Jupyter notebook
-    X = df.drop([target_col, 'Location'], axis=1)
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     
     # Train-test split before SMOTE - matching Jupyter notebook
@@ -280,9 +289,12 @@ def prepare_model_data(df, target_col):
     
     # Apply SMOTE only on training set - matching Jupyter notebook
     smote = SMOTE(random_state=42)
-    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-    
-    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    try:
+        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+        return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    except Exception as e:
+        st.warning(f"SMOTE failed: {str(e)}. Using original training data.")
+        return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -320,20 +332,23 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
-    df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+    try:
+        df, label_encoders, target_col = load_default_data()
+        X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+        models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
-    st.session_state.current_df = df
-    st.session_state.label_encoders = label_encoders
-    st.session_state.models = models
-    st.session_state.scores_df = scores_df
-    st.session_state.X = X
-    st.session_state.y = y
-    st.session_state.X_train = X_train
-    st.session_state.X_test = X_test
-    st.session_state.y_train = y_train
-    st.session_state.y_test = y_test
+        st.session_state.current_df = df
+        st.session_state.label_encoders = label_encoders
+        st.session_state.models = models
+        st.session_state.scores_df = scores_df
+        st.session_state.X = X
+        st.session_state.y = y
+        st.session_state.X_train = X_train
+        st.session_state.X_test = X_test
+        st.session_state.y_train = y_train
+        st.session_state.y_test = y_test
+    except Exception as e:
+        st.error(f"Initialization failed: {str(e)}")
 
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
