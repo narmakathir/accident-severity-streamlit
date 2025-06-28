@@ -245,18 +245,27 @@ def preprocess_data(df, is_default=False):
     # Drop duplicates
     df.drop_duplicates(inplace=True)
     
-    # Handle missing values
-    df.fillna(df.median(numeric_only=True), inplace=True)
-    df.fillna(df.mode().iloc[0], inplace=True)
+    # Handle missing values - first numeric, then categorical
+    numeric_cols = df.select_dtypes(include=np.number).columns
+    if not numeric_cols.empty:
+        df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
+    
+    # Fill remaining categorical columns with mode
+    cat_cols = df.select_dtypes(exclude=np.number).columns
+    for col in cat_cols:
+        if df[col].isnull().any():
+            df[col] = df[col].fillna(df[col].mode()[0])
 
     # Extract coordinates from Location
     if 'Location' in df.columns:
         try:
             location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
-            df['latitude'] = location[0].astype(float)
-            df['longitude'] = location[1].astype(float)
-        except:
-            pass
+            df['latitude'] = pd.to_numeric(location[0], errors='coerce')
+            df['longitude'] = pd.to_numeric(location[1], errors='coerce')
+            # Drop rows where coordinates couldn't be parsed
+            df = df.dropna(subset=['latitude', 'longitude'])
+        except Exception as e:
+            print(f"Location parsing failed: {str(e)}")
 
     # Identify target column
     target_col = st.session_state.target_col
@@ -266,16 +275,25 @@ def preprocess_data(df, is_default=False):
             target_col = possible_targets[0]
             st.session_state.target_col = target_col
 
-    # Encode categorical columns
+    # Encode categorical columns (excluding Location)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':  # Skip location column for encoding
             le = LabelEncoder()
-            df[col] = le.fit_transform(df[col])
+            df[col] = le.fit_transform(df[col].astype(str))
             label_encoders[col] = le
 
-    # Scale numeric features
-    numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
+    # Ensure target is numeric
+    if df[target_col].dtype == 'object':
+        if target_col in label_encoders:
+            df[target_col] = label_encoders[target_col].transform(df[target_col])
+        else:
+            le = LabelEncoder()
+            df[target_col] = le.fit_transform(df[target_col])
+            label_encoders[target_col] = le
+
+    # Scale numeric features (excluding target)
+    numeric_cols = df.select_dtypes(include=np.number).columns.difference([target_col])
     if len(numeric_cols) > 0:
         scaler = StandardScaler()
         df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
@@ -295,12 +313,16 @@ def prepare_model_data(df, target_col, is_default=False):
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only for default dataset
-    if is_default:
-        print("Before SMOTE:", Counter(y_train))
-        smote = SMOTE(random_state=42)
-        X_train, y_train = smote.fit_resample(X_train, y_train)
-        print("After SMOTE:", Counter(y_train))
+    # Apply SMOTE only for default dataset and only if needed
+    if is_default and len(np.unique(y_train)) > 1:
+        try:
+            print("Before SMOTE:", Counter(y_train))
+            smote = SMOTE(random_state=42)
+            X_train, y_train = smote.fit_resample(X_train, y_train)
+            print("After SMOTE:", Counter(y_train))
+        except Exception as e:
+            print(f"SMOTE failed: {str(e)}")
+            # Continue with original data if SMOTE fails
     
     return X, y, X_train, X_test, y_train, y_test
 
@@ -663,7 +685,7 @@ def render_reports():
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
