@@ -268,22 +268,13 @@ def train_models(X_train, y_train, X_test, y_test):
             y_pred = model.predict(X_test)
             
             # Calculate metrics
-            acc = accuracy_score(y_test, y_pred)
-            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
-            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
-            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
-            
-            # Store confusion matrix and classification report
-            cm = confusion_matrix(y_test, y_pred)
-            cr = classification_report(y_test, y_pred, output_dict=True)
-            
-            trained_models[name] = {
-                'model': model,
-                'confusion_matrix': cm,
-                'classification_report': cr
-            }
-            
-            model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
+            acc = accuracy_score(y_test, y_pred) * 100
+            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0) * 100
+            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0) * 100
+            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0) * 100
+
+            trained_models[name] = model
+            model_scores.append([name, acc, prec, rec, f1])
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -420,7 +411,7 @@ def render_data_analysis():
                     color='red',
                     fill=True,
                     fill_color='red',
-                    fill_opacity=0.9
+                    fill_opacity=0.7
                 ).add_to(m)
 
             folium_static(m, width=1000, height=600)
@@ -468,7 +459,7 @@ def render_data_analysis():
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
         if model_name in st.session_state.models:
-            model = st.session_state.models[model_name]['model']
+            model = st.session_state.models[model_name]
 
             try:
                 if hasattr(model, 'feature_importances_'):
@@ -507,7 +498,7 @@ def render_prediction():
         with st.container():
             st.subheader("Model Selection")
             selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
-            model = st.session_state.models[selected_model]['model']
+            model = st.session_state.models[selected_model]
 
         with st.container():
             st.subheader("Input Parameters")
