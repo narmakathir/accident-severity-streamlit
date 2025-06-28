@@ -8,6 +8,8 @@ import os
 import tempfile
 import folium
 from streamlit_folium import folium_static
+from imblearn.over_sampling import SMOTE
+from collections import Counter
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -186,6 +188,8 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
+if 'smote_applied' not in st.session_state:
+    st.session_state.smote_applied = False
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -286,7 +290,15 @@ def prepare_model_data(df, target_col):
         X = X.drop(loc_cols, axis=1)
 
     y = df[target_col]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+    
+    # Apply SMOTE only to training data
+    st.session_state.smote_applied = False
+    if len(np.unique(y_train)) > 1:  # Only apply SMOTE if we have multiple classes
+        st.session_state.smote_applied = True
+        smote = SMOTE(random_state=42)
+        X_train, y_train = smote.fit_resample(X_train, y_train)
+    
     return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
@@ -296,7 +308,7 @@ def train_models(X_train, y_train, X_test, y_test):
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
-        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
+        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
     trained_models = {}
     model_scores = []
@@ -397,6 +409,9 @@ def render_home():
         st.metric("Features Available", len(st.session_state.current_df.columns))
     with col3:
         st.metric("Trained Models", len(st.session_state.models))
+    
+    if st.session_state.smote_applied:
+        st.info("SMOTE has been applied to balance the training dataset classes.")
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
@@ -849,6 +864,8 @@ def create_sidebar():
     st.sidebar.markdown("### System Info")
     st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
+    if st.session_state.smote_applied:
+        st.sidebar.info("SMOTE applied")
 
 # --- Main App ---
 def main():
