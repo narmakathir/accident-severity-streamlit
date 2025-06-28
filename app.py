@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from imblearn.over_sampling import SMOTE
 from collections import Counter
 import xgboost as xgb
@@ -261,11 +261,9 @@ def prepare_model_data(df, target_col):
     try:
         smote = SMOTE(random_state=42)
         X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-        st.write(f"Before SMOTE class distribution: {Counter(y_train)}")
-        st.write(f"After SMOTE class distribution: {Counter(y_train_resampled)}")
         return X, y, X_train_resampled, X_test, y_train_resampled, y_test
     except Exception as e:
-        st.error(f"SMOTE failed: {str(e)}. Using original data.")
+        st.warning(f"SMOTE failed: {str(e)}. Using original data.")
         return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
@@ -305,10 +303,6 @@ def train_models(X_train, y_train, X_test, y_test):
             
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
-            
-            # Store full evaluation metrics
-            st.session_state[f'{name}_cm'] = confusion_matrix(y_test, y_pred)
-            st.session_state[f'{name}_cr'] = classification_report(y_test, y_pred, output_dict=True)
             
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
@@ -412,15 +406,15 @@ def render_data_analysis():
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add points to the map
+            # Add points to the map - changed to red
             for idx, row in df.sample(min(1000, len(df))).iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
                     radius=3,
-                    color='#ff7f0e',
+                    color='red',
                     fill=True,
-                    fill_color='#ff7f0e',
-                    fill_opacity=0.7
+                    fill_color='red',
+                    fill_opacity=0.9
                 ).add_to(m)
 
             folium_static(m, width=1000, height=600)
@@ -463,18 +457,6 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
-            
-            # Show detailed model evaluations
-            st.subheader("Detailed Model Evaluations")
-            selected_model = st.selectbox("Select Model to View Detailed Report", list(st.session_state.models.keys()))
-            
-            st.markdown(f"**Confusion Matrix for {selected_model}**")
-            st.write(st.session_state[f'{selected_model}_cm'])
-            
-            st.markdown(f"**Classification Report for {selected_model}**")
-            cr = st.session_state[f'{selected_model}_cr']
-            cr_df = pd.DataFrame(cr).transpose()
-            st.dataframe(cr_df.style.format("{:.2f}"))
     
     with st.expander("Feature Importance Analysis"):
         if st.session_state.models:
