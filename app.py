@@ -188,48 +188,10 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
-if 'smote_applied' not in st.session_state:
-    st.session_state.smote_applied = False
 
 # --- Navigation Functions ---
 def navigate_to(page):
     st.session_state.current_page = page
-
-# --- Normalize Text Values ---
-def normalize_categories(df, custom_mappings=None):
-    default_mappings = {
-        'Weather Condition': {
-            'Raining': 'Rain',
-            'Rainy': 'Rain',
-            'Drizzling': 'Rain',
-            'Sun': 'Sunny',
-            'Clear': 'Sunny',
-            'Foggy': 'Fog',
-            'Overcast': 'Cloudy'
-        },
-        'Road Condition': {
-            'Wet': 'Wet',
-            'Dry': 'Dry',
-            'Snowy': 'Snow/Ice',
-            'Snow/Ice': 'Snow/Ice',
-            'Icy': 'Snow/Ice'
-        },
-        'Light Condition': {
-            'Dark - No Street Lights': 'Dark',
-            'Dark - Street Lights Off': 'Dark',
-            'Dark - Street Lights On': 'Dark',
-            'Daylight': 'Daylight'
-        },
-    }
-
-    mappings = custom_mappings if custom_mappings else default_mappings
-
-    for col, replacements in mappings.items():
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip().str.title()
-            df[col] = df[col].replace(replacements)
-
-    return df
 
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
@@ -239,105 +201,82 @@ def load_default_data():
     return preprocess_data(df)
 
 def preprocess_data(df):
-    # Basic preprocessing - match Jupyter code
+    # Basic preprocessing
     df = df.copy()
     
-    # Data cleaning steps from Jupyter
+    # Data cleaning steps from Jupyter notebook
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
     
-    # Try to identify location data - match Jupyter code
-    if 'Location' in df.columns:
-        try:
-            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
-            df['latitude'] = location[0].astype(float)
-            df['longitude'] = location[1].astype(float)
-            df.dropna(subset=['latitude', 'longitude'], inplace=True)
-        except:
-            pass
-
-    # Try to identify target column
-    target_col = st.session_state.target_col
-    if target_col not in df.columns:
-        possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
-        if possible_targets:
-            target_col = possible_targets[0]
-            st.session_state.target_col = target_col
-
-    # Normalize categories with empty custom mappings (use defaults)
-    df = normalize_categories(df, custom_mappings={})
-
-    # Encode categorical columns - match Jupyter code
+    # Extract coordinates from Location column (matches Jupyter notebook)
+    location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+    df['latitude'] = location[0].astype(float)
+    df['longitude'] = location[1].astype(float)
+    
+    # Label encoding for categorical columns (matches Jupyter notebook)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        if col != 'Location':  # Skip location column as in Jupyter
-            df[col] = df[col].astype(str).str.strip().str.title()
+        if col != 'Location':  # Skip location column
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
-
-    # Scale numeric features - match Jupyter code
+    
+    # Standard scaling for numeric columns (matches Jupyter notebook)
+    target_col = st.session_state.target_col
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    if len(numeric_cols) > 0:
-        scaler = StandardScaler()
-        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    # Match Jupyter code feature/target split
-    X = df.drop([target_col, 'Location'], axis=1)  # Explicitly drop Location as in Jupyter
-    
+    # Feature and target split (matches Jupyter notebook)
+    X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
     
-    # Train-test split with stratification as in Jupyter
+    # Train-test split before SMOTE (matches Jupyter notebook)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    return X, y, X_train, X_test, y_train, y_test
+    # Apply SMOTE only on training set (matches Jupyter notebook)
+    smote = SMOTE(random_state=42)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    
+    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
-    # Match hyperparameters from Jupyter code
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
-        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, 
-                                                 activation='relu', solver='adam', random_state=42)
+        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
-    
     trained_models = {}
     model_scores = []
-    
-    # Apply SMOTE if enabled
-    if st.session_state.smote_applied:
-        smote = SMOTE(random_state=42)
-        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-        X_train = X_train_resampled
-        y_train = y_train_resampled
 
     for name, model in models.items():
         try:
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Get metrics as in Jupyter code
-            acc = accuracy_score(y_test, y_pred)
-            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
-            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
-            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
-
-            trained_models[name] = model
-            model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
+            # Calculate metrics (matches Jupyter notebook)
+            acc = accuracy_score(y_test, y_pred) * 100
+            prec = precision_score(y_test, y_pred, average='weighted') * 100
+            rec = recall_score(y_test, y_pred, average='weighted') * 100
+            f1 = f1_score(y_test, y_pred, average='weighted') * 100
             
-            # Store additional metrics for detailed reports
-            if name not in st.session_state:
-                st.session_state[name] = {}
-            st.session_state[name]['confusion_matrix'] = confusion_matrix(y_test, y_pred)
-            st.session_state[name]['classification_report'] = classification_report(y_test, y_pred)
+            # Store confusion matrix and classification report
+            cm = confusion_matrix(y_test, y_pred)
+            cr = classification_report(y_test, y_pred, output_dict=True)
             
+            trained_models[name] = {
+                'model': model,
+                'confusion_matrix': cm,
+                'classification_report': cr
+            }
+            model_scores.append([name, acc, prec, rec, f1])
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -460,14 +399,15 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles as in Jupyter
+            # Create Folium map with dark tiles (matches Jupyter notebook)
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add points to the map - using red points as in Jupyter
-            for idx, row in df.sample(min(1000, len(df))).iterrows():
+            # Add red points to the map (matches Jupyter notebook)
+            sample_df = df.sample(min(1000, len(df)), random_state=42)
+            for _, row in sample_df.iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
                     radius=3,
@@ -483,18 +423,7 @@ def render_data_analysis():
 
     with st.expander("Feature Correlation Heatmap"):
         try:
-            # Use same columns as in Jupyter EDA
-            eda_cols = [
-                'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
-                'Traffic Control', 'Weather', 'Surface Condition', 'Light',
-                'Speed Limit', 'Driver Substance Abuse'
-            ]
-            eda_in_df = [col for col in eda_cols if col in df.columns]
-            
-            if st.session_state.target_col in df.columns:
-                eda_in_df += [st.session_state.target_col]
-
-            corr = df[eda_in_df].corr()
+            corr = df.select_dtypes(['number']).corr()
             fig, ax = plt.subplots(figsize=(12, 10))
             sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax, center=0,
                        cbar_kws={'label': 'Correlation Coefficient'})
@@ -517,40 +446,30 @@ def render_data_analysis():
                 'border-color': '#2A3459'
             }))
             
-            # Performance comparison chart - match Jupyter visualization
+            # Performance comparison chart (matches Jupyter notebook)
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
-            
-            metrics = ['Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']
-            x = np.arange(len(metrics))
-            width = 0.2
-            
-            for i, model in enumerate(performance_df.index):
-                offset = width * (i - 1.5)
-                ax.bar(x + offset, performance_df.loc[model], width, label=model)
-            
-            ax.set_xticks(x)
-            ax.set_xticklabels([m.replace(' (%)', '') for m in metrics])
-            ax.set_ylim(0, 100)
+            performance_df.plot(kind='bar', ax=ax, cmap='coolwarm')
             ax.set_title('Model Performance Comparison', color='white', pad=20)
             ax.set_ylabel('Score (%)', color='white')
-            ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
+            ax.set_xlabel('Model', color='white')
             ax.grid(True, linestyle='--', alpha=0.6)
+            ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
         if model_name in st.session_state.models:
-            model = st.session_state.models[model_name]
+            model = st.session_state.models[model_name]['model']
 
             try:
-                if hasattr(model, 'feature_importances_'):
+                if hasattr(model, 'feature_importances_'):  # Random Forest, XGBoost
                     importances = model.feature_importances_
-                elif hasattr(model, 'coef_'):
+                elif hasattr(model, 'coef_'):  # Logistic Regression
                     importances = np.abs(model.coef_[0])
-                elif hasattr(model, 'coefs_'):
+                elif hasattr(model, 'coefs_'):  # Neural Network
                     importances = np.mean(np.abs(model.coefs_[0]), axis=1)
                 else:
                     raise AttributeError("Model doesn't have feature importance attributes")
@@ -564,7 +483,7 @@ def render_data_analysis():
                 top_vals = importances_vals[sorted_idx][:n_features]
 
                 fig, ax = plt.subplots(figsize=(10, 6))
-                sns.barplot(x=top_vals, y=top_features, ax=ax, palette="viridis")  # Match Jupyter palette
+                sns.barplot(x=top_vals, y=top_features, ax=ax, palette="coolwarm")
                 ax.set_title(f'{model_name} - Top {n_features} Features', color='white', pad=20)
                 ax.set_xlabel('Importance Score', color='white')
                 ax.set_ylabel('Feature', color='white')
@@ -582,7 +501,7 @@ def render_prediction():
         with st.container():
             st.subheader("Model Selection")
             selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
-            model = st.session_state.models[selected_model]
+            model = st.session_state.models[selected_model]['model']
 
         with st.container():
             st.subheader("Input Parameters")
@@ -673,7 +592,7 @@ def render_reports():
         </div>
         """, unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -691,7 +610,7 @@ def render_reports():
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -809,19 +728,6 @@ def render_admin():
                 with st.spinner("Processing new dataset and retraining models..."):
                     handle_dataset_upload(uploaded_file)
 
-    with st.expander("Model Configuration"):
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">SMOTE Configuration</div>
-            <p>Apply SMOTE to handle class imbalance.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        smote_toggle = st.toggle("Apply SMOTE", value=st.session_state.smote_applied)
-        if smote_toggle != st.session_state.smote_applied:
-            st.session_state.smote_applied = smote_toggle
-            st.rerun()  # Re-run the app to apply changes
-
     with st.expander("System Information"):
         st.subheader("System Information")
         info_col1, info_col2 = st.columns(2)
@@ -909,7 +815,6 @@ def create_sidebar():
     st.sidebar.markdown("### System Info")
     st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
-    st.sidebar.markdown(f"**SMOTE:** {'Enabled' if st.session_state.smote_applied else 'Disabled'}")
 
 # --- Main App ---
 def main():
