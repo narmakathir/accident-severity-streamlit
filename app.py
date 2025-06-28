@@ -93,6 +93,8 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
 if 'model_metrics' not in st.session_state:
     st.session_state.model_metrics = {}
+if 'is_default_data' not in st.session_state:
+    st.session_state.is_default_data = True
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -143,18 +145,19 @@ def preprocess_data(df):
 
     return df, label_encoders, target_col
 
-def prepare_model_data(df, target_col):
+def prepare_model_data(df, target_col, apply_smote=False):
     X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     
-    # Train-test split before SMOTE
+    # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only on training set
-    smote = SMOTE(random_state=42)
-    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    # Apply SMOTE only if specified (for default dataset)
+    if apply_smote and st.session_state.is_default_data:
+        smote = SMOTE(random_state=42)
+        X_train, y_train = smote.fit_resample(X_train, y_train)
     
-    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    return X, y, X_train, X_test, y_train, y_test
 
 # --- Model Training ---
 @st.cache_resource
@@ -187,7 +190,7 @@ def train_models(X_train, y_train, X_test, y_test):
             # Store metrics
             model_metrics[name] = {
                 'confusion_matrix': confusion_matrix(y_test, y_pred),
-                'classification_report': classification_report(y_test, y_pred)
+                'classification_report': classification_report(y_test, y_pred, output_dict=True)
             }
             
         except Exception as e:
@@ -200,7 +203,7 @@ def train_models(X_train, y_train, X_test, y_test):
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
     df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
     models, scores_df, model_metrics = train_models(X_train, y_train, X_test, y_test)
 
     st.session_state.current_df = df
@@ -214,6 +217,7 @@ if st.session_state.current_df is None:
     st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_test = y_test
+    st.session_state.is_default_data = True
 
 # --- Page Rendering Functions ---
 def render_home():
@@ -329,7 +333,13 @@ def render_data_analysis():
                 st.pyplot(fig)
                 
                 st.subheader(f"Classification Report - {model_name}")
-                st.text(st.session_state.model_metrics[model_name]['classification_report'])
+                cr = st.session_state.model_metrics[model_name]['classification_report']
+                cr_df = pd.DataFrame(cr).transpose()
+                st.dataframe(cr_df.style.set_properties(**{
+                    'background-color': '#1E2130',
+                    'color': 'white',
+                    'border-color': '#2A3459'
+                }))
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
@@ -363,8 +373,6 @@ def render_data_analysis():
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Could not display feature importances: {str(e)}")
-
-# [Rest of the code remains the same for other pages...]
 
 def render_prediction():
     st.title("Accident Severity Prediction")
@@ -599,7 +607,7 @@ def render_admin():
                         os.unlink(tmp_path)
 
                         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
-                        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
+                        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col, apply_smote=False)
                         new_models, new_scores_df, new_model_metrics = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
 
                         st.session_state.current_df = new_df
@@ -614,6 +622,7 @@ def render_admin():
                         st.session_state.y_train = new_y_train
                         st.session_state.y_test = new_y_test
                         st.session_state.target_col = new_target_col
+                        st.session_state.is_default_data = False
 
                         st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
                     except Exception as e:
@@ -664,7 +673,7 @@ def render_admin():
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
-                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
                 models, scores_df, model_metrics = train_models(X_train, y_train, X_test, y_test)
 
                 st.session_state.current_df = df
@@ -679,6 +688,7 @@ def render_admin():
                 st.session_state.y_train = y_train
                 st.session_state.y_test = y_test
                 st.session_state.target_col = target_col
+                st.session_state.is_default_data = True
 
                 st.success("System reset to default dataset completed!")
 
