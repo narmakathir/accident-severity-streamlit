@@ -188,6 +188,8 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
+if 'is_default_data' not in st.session_state:
+    st.session_state.is_default_data = True
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -198,9 +200,9 @@ def navigate_to(page):
 def load_default_data():
     url = st.session_state.default_dataset
     df = pd.read_csv(url)
-    return preprocess_data(df)
+    return preprocess_data(df, is_default=True)
 
-def preprocess_data(df):
+def preprocess_data(df, is_default=False):
     # Basic preprocessing - match Jupyter notebook exactly
     df = df.copy()
     
@@ -242,6 +244,9 @@ def preprocess_data(df):
         scaler = StandardScaler()
         df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     
+    # Store whether this is default data
+    st.session_state.is_default_data = is_default
+    
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
@@ -257,14 +262,17 @@ def prepare_model_data(df, target_col):
         X, y, test_size=0.2, stratify=y, random_state=42
     )
     
-    # Apply SMOTE only to training data
-    try:
-        smote = SMOTE(random_state=42)
-        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-        return X, y, X_train_resampled, X_test, y_train_resampled, y_test
-    except Exception as e:
-        st.warning(f"SMOTE failed: {str(e)}. Using original data.")
-        return X, y, X_train, X_test, y_train, y_test
+    # Apply SMOTE only to training data and only for default dataset
+    if st.session_state.is_default_data:
+        try:
+            smote = SMOTE(random_state=42)
+            X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+            return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+        except Exception as e:
+            st.warning(f"SMOTE failed: {str(e)}. Using original data.")
+    
+    # For non-default data or if SMOTE fails
+    return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -598,7 +606,7 @@ def render_reports():
         </div>
         """, unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
-            'background-color': '#1E2130',
+            'background-color': '#1E1117',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -616,7 +624,7 @@ def render_reports():
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E2130',
+            'background-color': '#1E1117',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -744,8 +752,8 @@ def render_admin():
                         # Clean up the temporary file
                         os.unlink(tmp_path)
                         
-                        # Preprocess the new dataset
-                        new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
+                        # Preprocess the new dataset (mark as not default)
+                        new_df, new_label_encoders, new_target_col = preprocess_data(new_df, is_default=False)
                         new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
                         
                         # Train models on new data
@@ -828,6 +836,7 @@ def render_admin():
                     st.session_state.y_train = y_train
                     st.session_state.y_test = y_test
                     st.session_state.target_col = target_col
+                    st.session_state.is_default_data = True
 
                     st.success("System reset to default dataset completed!")
                 except Exception as e:
@@ -858,6 +867,7 @@ def create_sidebar():
     st.sidebar.markdown("### System Info")
     st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df) if st.session_state.current_df is not None else 0} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
+    st.sidebar.markdown(f"**Data Source:** {'Default' if st.session_state.is_default_data else 'Custom'}")
 
 # --- Main App ---
 def main():
