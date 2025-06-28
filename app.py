@@ -10,7 +10,7 @@ import folium
 from streamlit_folium import folium_static
 from collections import Counter
 
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -201,9 +201,10 @@ def load_default_data():
     return preprocess_data(df)
 
 def preprocess_data(df):
-    # Data cleaning as per Jupyter notebook
+    # Make a copy of the dataframe
     df = df.copy()
     
+    # Data Cleaning - Match Jupyter notebook
     # Drop duplicates
     df.drop_duplicates(inplace=True)
     
@@ -211,13 +212,8 @@ def preprocess_data(df):
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
     
-    # Feature engineering - extract coordinates
-    if 'Location' in df.columns:
-        location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
-        df['latitude'] = location[0].astype(float)
-        df['longitude'] = location[1].astype(float)
-    
-    # Encode categorical columns (excluding Location)
+    # Feature Engineering - Match Jupyter notebook
+    # Label Encoding for categorical columns
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':
@@ -225,23 +221,31 @@ def preprocess_data(df):
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
     
-    # Normalize numeric columns (excluding target)
-    target_col = st.session_state.target_col
+    # Normalize numeric columns
+    target_col = 'Injury Severity'
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    if len(numeric_cols) > 0:
-        scaler = StandardScaler()
-        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    
+    # Extract coordinates from Location
+    if 'Location' in df.columns:
+        location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
+        df['latitude'] = location[0].astype(float)
+        df['longitude'] = location[1].astype(float)
     
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
+    # Feature and target split
     X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
     
     # Train-test split BEFORE SMOTE with stratification
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42
+    )
     
-    # Apply SMOTE ONLY on Training Set
+    # Apply SMOTE ONLY on Training Set - Match Jupyter notebook
     smote = SMOTE(random_state=42)
     X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     
@@ -265,7 +269,7 @@ def train_models(X_train, y_train, X_test, y_test):
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Calculate metrics
+            # Calculate metrics - match Jupyter notebook
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -296,6 +300,7 @@ if st.session_state.current_df is None:
     st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_test = y_test
+    st.session_state.target_col = target_col
 
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
@@ -404,42 +409,49 @@ def render_data_analysis():
 
     with st.expander("Feature Correlation Heatmap"):
         try:
-            # Select relevant columns as in Jupyter notebook
+            # Select only relevant columns for correlation
             eda_cols = [
                 'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
                 'Traffic Control', 'Weather', 'Surface Condition', 'Light',
-                'Speed Limit', 'Driver Substance Abuse'
+                'Speed Limit', 'Driver Substance Abuse', st.session_state.target_col
             ]
             eda_in_df = [col for col in eda_cols if col in df.columns]
             
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.heatmap(df[eda_in_df + [st.session_state.target_col]].corr(), 
-                       cmap='coolwarm', annot=False, ax=ax)
-            ax.set_title("Correlation Heatmap (Accident Features)", color='white', pad=20)
+            fig, ax = plt.subplots(figsize=(10, 8))
+            sns.heatmap(df[eda_in_df].corr(), cmap='coolwarm', annot=False, ax=ax, center=0)
+            ax.set_title("Feature Correlation Heatmap", color='white', pad=20)
             st.pyplot(fig)
         except Exception as e:
             st.warning(f"Could not generate correlation heatmap: {str(e)}")
 
     if not st.session_state.scores_df.empty:
         with st.expander("Model Performance Metrics"):
-            # Format the scores to show 2 decimal places
-            formatted_scores = st.session_state.scores_df.copy()
-            for col in formatted_scores.columns[1:]:
-                formatted_scores[col] = formatted_scores[col].apply(lambda x: f"{x:.2f}")
-
-            # Display as a styled table
-            st.table(formatted_scores.style.set_properties(**{
-                'background-color': '#1E2130',
-                'color': 'white',
-                'border-color': '#2A3459'
-            }))
+            # Display classification reports for each model
+            for model_name, model in st.session_state.models.items():
+                st.subheader(f"{model_name} Performance")
+                y_pred = model.predict(st.session_state.X_test)
+                
+                # Confusion matrix
+                st.write("Confusion Matrix:")
+                cm = confusion_matrix(st.session_state.y_test, y_pred)
+                fig, ax = plt.subplots(figsize=(8, 6))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm', ax=ax)
+                ax.set_title('Confusion Matrix', color='white')
+                ax.set_xlabel('Predicted', color='white')
+                ax.set_ylabel('Actual', color='white')
+                st.pyplot(fig)
+                
+                # Classification report
+                st.write("Classification Report:")
+                cr = classification_report(st.session_state.y_test, y_pred)
+                st.text(cr)
             
             # Performance comparison chart
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
             performance_df.plot(kind='bar', ax=ax, cmap='coolwarm')
-            ax.set_title('Model Comparison Metrics', color='white', pad=20)
+            ax.set_title('Model Performance Comparison', color='white', pad=20)
             ax.set_ylabel('Score (%)', color='white')
             ax.set_xlabel('Model', color='white')
             ax.grid(True, linestyle='--', alpha=0.6)
@@ -453,20 +465,19 @@ def render_data_analysis():
             model = st.session_state.models[model_name]
 
             try:
-                if hasattr(model, 'feature_importances_'):  # Random Forest, XGBoost
+                if hasattr(model, 'feature_importances_'):
                     importances = model.feature_importances_
-                elif hasattr(model, 'coef_'):  # Logistic Regression
+                elif hasattr(model, 'coef_'):
                     importances = np.abs(model.coef_[0])
-                elif hasattr(model, 'coefs_'):  # Neural Network
+                elif hasattr(model, 'coefs_'):
                     importances = np.mean(np.abs(model.coefs_[0]), axis=1)
                 else:
                     raise AttributeError("Model doesn't have feature importance attributes")
 
-                # Normalize importances
                 importances_vals = importances / importances.sum()
                 sorted_idx = np.argsort(importances_vals)[::-1]
                 
-                # Get top 10 features
+                # Ensure we don't try to access more features than available
                 n_features = min(10, len(st.session_state.X.columns))
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
                 top_vals = importances_vals[sorted_idx][:n_features]
@@ -680,10 +691,10 @@ def render_help():
             <div class="card-title">Technical Information</div>
             <p>The application uses the following machine learning models:</p>
             <ul>
-                <li>Logistic Regression (max_iter=1000)</li>
-                <li>Random Forest (random_state=42)</li>
-                <li>XGBoost (random_state=42, use_label_encoder=False, eval_metric='mlogloss')</li>
-                <li>Artificial Neural Network (hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam')</li>
+                <li>Logistic Regression</li>
+                <li>Random Forest</li>
+                <li>XGBoost</li>
+                <li>Artificial Neural Network</li>
             </ul>
             <p>All visualizations use a consistent dark theme for better readability.</p>
         </div>
