@@ -353,15 +353,25 @@ def render_data_analysis():
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
 
+   def render_data_analysis():
+    st.title("Data Analysis & Insights")
+
+    if st.session_state.current_df is None:
+        st.error("No data loaded. Please check the dataset.")
+        return
+
+    df = st.session_state.current_df
+    scores_df = st.session_state.scores_df
+
     with st.expander("Target Variable Distribution", expanded=True):
-    if st.session_state.target_col in df.columns:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-        
-        ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
-        ax.set_xlabel('Severity Level (Numerical)', color='white')
-        ax.set_ylabel('Count', color='white')
-        st.pyplot(fig)
+        if st.session_state.target_col in df.columns:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
+            
+            ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
+            ax.set_xlabel('Severity Level (Numerical)', color='white')
+            ax.set_ylabel('Count', color='white')
+            st.pyplot(fig)
         else:
             st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
 
