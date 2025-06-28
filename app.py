@@ -145,7 +145,7 @@ st.markdown("""
 PROJECT_OVERVIEW = """
 <div class="card">
     <div class="card-title">Project Overview</div>
-    <p>Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.</p>
+    <p>Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, vehicle damage extent, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.</p>
     <p>This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.</p>
 </div>
 """
