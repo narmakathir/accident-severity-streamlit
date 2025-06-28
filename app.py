@@ -8,15 +8,15 @@ import os
 import tempfile
 import folium
 from streamlit_folium import folium_static
-from imblearn.over_sampling import SMOTE
-from collections import Counter
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from imblearn.over_sampling import SMOTE
+from collections import Counter
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
@@ -188,8 +188,10 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
-if 'smote_applied' not in st.session_state:
-    st.session_state.smote_applied = False
+if 'X_train_resampled' not in st.session_state:
+    st.session_state.X_train_resampled = None
+if 'y_train_resampled' not in st.session_state:
+    st.session_state.y_train_resampled = None
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -245,12 +247,12 @@ def preprocess_data(df):
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    # Try to identify location data
+    # Extract coordinates from Location column
     if 'Location' in df.columns:
         try:
-            coords = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
-            df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
-            df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
+            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+            df['latitude'] = location[0].astype(float)
+            df['longitude'] = location[1].astype(float)
             df.dropna(subset=['latitude', 'longitude'], inplace=True)
         except:
             pass
@@ -269,10 +271,11 @@ def preprocess_data(df):
     # Encode categorical columns
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        df[col] = df[col].astype(str).str.strip().str.title()
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        label_encoders[col] = le
+        if col != 'Location':  # Skip location column
+            df[col] = df[col].astype(str).str.strip().str.title()
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+            label_encoders[col] = le
 
     # Scale numeric features
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
@@ -283,29 +286,23 @@ def preprocess_data(df):
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    X = df.drop([target_col], axis=1)
-    # Try to remove location columns if they exist
-    loc_cols = [col for col in X.columns if 'location' in col.lower() or col in ['latitude', 'longitude']]
-    if loc_cols:
-        X = X.drop(loc_cols, axis=1)
-
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
+    
+    # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only to training data
-    st.session_state.smote_applied = False
-    if len(np.unique(y_train)) > 1:  # Only apply SMOTE if we have multiple classes
-        st.session_state.smote_applied = True
-        smote = SMOTE(random_state=42)
-        X_train, y_train = smote.fit_resample(X_train, y_train)
+    # Apply SMOTE only on training set
+    smote = SMOTE(random_state=42)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     
-    return X, y, X_train, X_test, y_train, y_test
+    return X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled
 
 # --- Train Models ---
 @st.cache_resource
-def train_models(X_train, y_train, X_test, y_test):
+def train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test):
     models = {
-        'Logistic Regression': LogisticRegression(max_iter=1000),
+        'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
@@ -315,7 +312,12 @@ def train_models(X_train, y_train, X_test, y_test):
 
     for name, model in models.items():
         try:
-            model.fit(X_train, y_train)
+            # Train on resampled data except for XGBoost which handles imbalance better
+            if name != 'XGBoost':
+                model.fit(X_train_resampled, y_train_resampled)
+            else:
+                model.fit(X_train, y_train)
+                
             y_pred = model.predict(X_test)
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -324,6 +326,12 @@ def train_models(X_train, y_train, X_test, y_test):
 
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
+            
+            # Store detailed metrics
+            st.session_state[f'{name}_metrics'] = {
+                'confusion_matrix': confusion_matrix(y_test, y_pred),
+                'classification_report': classification_report(y_test, y_pred, output_dict=True)
+            }
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -334,8 +342,8 @@ def train_models(X_train, y_train, X_test, y_test):
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
     df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+    X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled = prepare_model_data(df, target_col)
+    models, scores_df = train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test)
 
     st.session_state.current_df = df
     st.session_state.label_encoders = label_encoders
@@ -347,6 +355,8 @@ if st.session_state.current_df is None:
     st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_test = y_test
+    st.session_state.X_train_resampled = X_train_resampled
+    st.session_state.y_train_resampled = y_train_resampled
 
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
@@ -364,10 +374,10 @@ def handle_dataset_upload(uploaded_file):
 
         # Preprocess the new dataset
         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
-        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
+        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test, new_X_train_resampled, new_y_train_resampled = prepare_model_data(new_df, new_target_col)
 
         # Train models on new data
-        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
+        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_train_resampled, new_y_train_resampled, new_X_test, new_y_test)
 
         # Update session state
         st.session_state.current_df = new_df
@@ -380,6 +390,8 @@ def handle_dataset_upload(uploaded_file):
         st.session_state.X_test = new_X_test
         st.session_state.y_train = new_y_train
         st.session_state.y_test = new_y_test
+        st.session_state.X_train_resampled = new_X_train_resampled
+        st.session_state.y_train_resampled = new_y_train_resampled
         st.session_state.target_col = new_target_col
 
         st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
@@ -409,9 +421,6 @@ def render_home():
         st.metric("Features Available", len(st.session_state.current_df.columns))
     with col3:
         st.metric("Trained Models", len(st.session_state.models))
-    
-    if st.session_state.smote_applied:
-        st.info("SMOTE has been applied to balance the training dataset classes.")
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
@@ -506,6 +515,29 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
+            
+            # Detailed model metrics
+            selected_model = st.selectbox("View detailed metrics for:", list(st.session_state.models.keys()))
+            
+            if f'{selected_model}_metrics' in st.session_state:
+                metrics = st.session_state[f'{selected_model}_metrics']
+                
+                st.subheader(f"Detailed Metrics for {selected_model}")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**Confusion Matrix**")
+                    fig, ax = plt.subplots(figsize=(6, 6))
+                    sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='coolwarm', ax=ax)
+                    ax.set_xlabel('Predicted')
+                    ax.set_ylabel('Actual')
+                    st.pyplot(fig)
+                
+                with col2:
+                    st.markdown("**Classification Report**")
+                    report_df = pd.DataFrame(metrics['classification_report']).transpose()
+                    st.dataframe(report_df.style.format("{:.2f}"))
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
@@ -822,8 +854,8 @@ def render_admin():
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
-                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-                models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled = prepare_model_data(df, target_col)
+                models, scores_df = train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test)
 
                 st.session_state.current_df = df
                 st.session_state.label_encoders = label_encoders
@@ -835,7 +867,8 @@ def render_admin():
                 st.session_state.X_test = X_test
                 st.session_state.y_train = y_train
                 st.session_state.y_test = y_test
-                st.session_state.target_col = target_col
+                st.session_state.X_train_resampled = X_train_resampled
+                st.session_state.y_train_resampled = y_train_resampled
 
                 st.success("System reset to default dataset completed!")
 
@@ -849,41 +882,4 @@ def create_sidebar():
     # Navigation buttons
     pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
     if admin_mode:
-        pages.append("Admin")
-    
-    for page in pages:
-        if st.sidebar.button(page, key=f"nav_{page}"):
-            navigate_to(page)
-    
-    # Highlight the current page
-    for page in pages:
-        if page == st.session_state.current_page:
-            st.sidebar.button(page, key=f"active_{page}", type="primary")
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### System Info")
-    st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
-    st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
-    if st.session_state.smote_applied:
-        st.sidebar.info("SMOTE applied")
-
-# --- Main App ---
-def main():
-    create_sidebar()
-    
-    # Page routing
-    if st.session_state.current_page == "Home":
-        render_home()
-    elif st.session_state.current_page == "Data Analysis":
-        render_data_analysis()
-    elif st.session_state.current_page == "Prediction":
-        render_prediction()
-    elif st.session_state.current_page == "Reports":
-        render_reports()
-    elif st.session_state.current_page == "Help":
-        render_help()
-    elif st.session_state.current_page == "Admin":
-        render_admin()
-
-if __name__ == "__main__":
-    main()
+       
