@@ -203,42 +203,49 @@ def load_default_data():
 def preprocess_data(df):
     # Basic preprocessing
     df = df.copy()
-    
-    # Data cleaning steps from Jupyter notebook
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
-    
-    # Extract coordinates from Location column (matches Jupyter notebook)
-    location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
-    df['latitude'] = location[0].astype(float)
-    df['longitude'] = location[1].astype(float)
-    
-    # Label encoding for categorical columns (matches Jupyter notebook)
+
+    # Extract coordinates from Location column
+    if 'Location' in df.columns:
+        location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+        df['latitude'] = location[0].astype(float)
+        df['longitude'] = location[1].astype(float)
+
+    # Try to identify target column
+    target_col = st.session_state.target_col
+    if target_col not in df.columns:
+        possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
+        if possible_targets:
+            target_col = possible_targets[0]
+            st.session_state.target_col = target_col
+
+    # Encode categorical columns
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':  # Skip location column
+            df[col] = df[col].astype(str).str.strip().str.title()
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
-    
-    # Standard scaling for numeric columns (matches Jupyter notebook)
-    target_col = st.session_state.target_col
+
+    # Scale numeric features
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    scaler = StandardScaler()
-    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-    
+    if len(numeric_cols) > 0:
+        scaler = StandardScaler()
+        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    # Feature and target split (matches Jupyter notebook)
-    X = df.drop([target_col, 'Location'], axis=1)
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     
-    # Train-test split before SMOTE (matches Jupyter notebook)
+    # Train-test split before SMOTE
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only on training set (matches Jupyter notebook)
+    # Apply SMOTE only on training set
     smote = SMOTE(random_state=42)
     X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     
@@ -261,22 +268,19 @@ def train_models(X_train, y_train, X_test, y_test):
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Calculate metrics (matches Jupyter notebook)
-            acc = accuracy_score(y_test, y_pred) * 100
-            prec = precision_score(y_test, y_pred, average='weighted') * 100
-            rec = recall_score(y_test, y_pred, average='weighted') * 100
-            f1 = f1_score(y_test, y_pred, average='weighted') * 100
+            # Calculate metrics
+            acc = accuracy_score(y_test, y_pred)
+            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+
+            trained_models[name] = model
+            model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
             
             # Store confusion matrix and classification report
-            cm = confusion_matrix(y_test, y_pred)
-            cr = classification_report(y_test, y_pred, output_dict=True)
+            st.session_state[f'{name}_cm'] = confusion_matrix(y_test, y_pred)
+            st.session_state[f'{name}_cr'] = classification_report(y_test, y_pred)
             
-            trained_models[name] = {
-                'model': model,
-                'confusion_matrix': cm,
-                'classification_report': cr
-            }
-            model_scores.append([name, acc, prec, rec, f1])
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -399,14 +403,14 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles (matches Jupyter notebook)
+            # Create Folium map with dark tiles
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add red points to the map (matches Jupyter notebook)
-            sample_df = df.sample(min(1000, len(df)), random_state=42)
+            # Add red points to the map
+            sample_df = df.sample(min(1000, len(df)))
             for _, row in sample_df.iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
@@ -446,7 +450,7 @@ def render_data_analysis():
                 'border-color': '#2A3459'
             }))
             
-            # Performance comparison chart (matches Jupyter notebook)
+            # Performance comparison chart
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -457,19 +461,35 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
+            
+            # Show confusion matrix and classification report for selected model
+            model_name = st.selectbox("Select Model for Detailed Report", list(st.session_state.models.keys()))
+            
+            st.subheader(f"Confusion Matrix - {model_name}")
+            cm = st.session_state[f'{model_name}_cm']
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm', ax=ax)
+            ax.set_title(f'Confusion Matrix - {model_name}', color='white')
+            ax.set_xlabel('Predicted', color='white')
+            ax.set_ylabel('Actual', color='white')
+            st.pyplot(fig)
+            
+            st.subheader(f"Classification Report - {model_name}")
+            cr = st.session_state[f'{model_name}_cr']
+            st.text(cr)
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
         if model_name in st.session_state.models:
-            model = st.session_state.models[model_name]['model']
+            model = st.session_state.models[model_name]
 
             try:
-                if hasattr(model, 'feature_importances_'):  # Random Forest, XGBoost
+                if hasattr(model, 'feature_importances_'):
                     importances = model.feature_importances_
-                elif hasattr(model, 'coef_'):  # Logistic Regression
+                elif hasattr(model, 'coef_'):
                     importances = np.abs(model.coef_[0])
-                elif hasattr(model, 'coefs_'):  # Neural Network
+                elif hasattr(model, 'coefs_'):
                     importances = np.mean(np.abs(model.coefs_[0]), axis=1)
                 else:
                     raise AttributeError("Model doesn't have feature importance attributes")
@@ -501,7 +521,7 @@ def render_prediction():
         with st.container():
             st.subheader("Model Selection")
             selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
-            model = st.session_state.models[selected_model]['model']
+            model = st.session_state.models[selected_model]
 
         with st.container():
             st.subheader("Input Parameters")
