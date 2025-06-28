@@ -15,6 +15,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from imblearn.over_sampling import SMOTE
+from collections import Counter
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
@@ -191,42 +193,6 @@ if 'current_page' not in st.session_state:
 def navigate_to(page):
     st.session_state.current_page = page
 
-# --- Normalize Text Values ---
-def normalize_categories(df, custom_mappings=None):
-    default_mappings = {
-        'Weather Condition': {
-            'Raining': 'Rain',
-            'Rainy': 'Rain',
-            'Drizzling': 'Rain',
-            'Sun': 'Sunny',
-            'Clear': 'Sunny',
-            'Foggy': 'Fog',
-            'Overcast': 'Cloudy'
-        },
-        'Road Condition': {
-            'Wet': 'Wet',
-            'Dry': 'Dry',
-            'Snowy': 'Snow/Ice',
-            'Snow/Ice': 'Snow/Ice',
-            'Icy': 'Snow/Ice'
-        },
-        'Light Condition': {
-            'Dark - No Street Lights': 'Dark',
-            'Dark - Street Lights Off': 'Dark',
-            'Dark - Street Lights On': 'Dark',
-            'Daylight': 'Daylight'
-        },
-    }
-
-    mappings = custom_mappings if custom_mappings else default_mappings
-
-    for col, replacements in mappings.items():
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip().str.title()
-            df[col] = df[col].replace(replacements)
-
-    return df
-
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
 def load_default_data():
@@ -235,59 +201,48 @@ def load_default_data():
     return preprocess_data(df)
 
 def preprocess_data(df):
-    # Basic preprocessing
+    # Basic preprocessing - same as Jupyter notebook
     df = df.copy()
+    
+    # Data cleaning
     df.drop_duplicates(inplace=True)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
-
-    # Try to identify location data
-    if 'Location' in df.columns:
-        try:
-            coords = df['Location'].str.extract(r'\(([^,]+),\s*([^)]+)\)')
-            df['latitude'] = pd.to_numeric(coords[0], errors='coerce')
-            df['longitude'] = pd.to_numeric(coords[1], errors='coerce')
-            df.dropna(subset=['latitude', 'longitude'], inplace=True)
-        except:
-            pass
-
-    # Try to identify target column
-    target_col = st.session_state.target_col
-    if target_col not in df.columns:
-        possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
-        if possible_targets:
-            target_col = possible_targets[0]
-            st.session_state.target_col = target_col
-
-    # Normalize categories with empty custom mappings (use defaults)
-    df = normalize_categories(df, custom_mappings={})
-
-    # Encode categorical columns
+    
+    # Feature engineering - label encoding
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        df[col] = df[col].astype(str).str.strip().str.title()
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        label_encoders[col] = le
-
-    # Scale numeric features
+        if col != 'Location':  # Skip location column for encoding
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+            label_encoders[col] = le
+    
+    # Extract coordinates from Location
+    if 'Location' in df.columns:
+        location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+        df['latitude'] = location[0].astype(float)
+        df['longitude'] = location[1].astype(float)
+    
+    # Normalize numeric columns
+    target_col = 'Injury Severity'
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-    if len(numeric_cols) > 0:
-        scaler = StandardScaler()
-        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    X = df.drop([target_col], axis=1)
-    # Try to remove location columns if they exist
-    loc_cols = [col for col in X.columns if 'location' in col.lower() or col in ['latitude', 'longitude']]
-    if loc_cols:
-        X = X.drop(loc_cols, axis=1)
-
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return X, y, X_train, X_test, y_train, y_test
+    
+    # Train-test split before SMOTE
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+    
+    # Apply SMOTE only to training data
+    smote = SMOTE(random_state=42)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    
+    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -296,8 +251,9 @@ def train_models(X_train, y_train, X_test, y_test):
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
-        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
+        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
+    
     trained_models = {}
     model_scores = []
 
@@ -305,6 +261,8 @@ def train_models(X_train, y_train, X_test, y_test):
         try:
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
+            
+            # Calculate metrics
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -407,30 +365,12 @@ def render_data_analysis():
     scores_df = st.session_state.scores_df
 
     with st.expander("Target Variable Distribution", expanded=True):
-        if st.session_state.target_col in df.columns:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-
-            # Add severity level labels
-            severity_labels = {
-                0: "No Injury",
-                1: "Minor Injury",
-                2: "Moderate Injury",
-                3: "Serious Injury",
-                4: "Fatal Injury"
-            }
-
-            # Get current labels and replace with severity labels if they match
-            current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
-            new_labels = [severity_labels.get(label, label) for label in current_labels]
-            ax.set_xticklabels(new_labels, rotation=45, ha='right')
-
-            ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
-            ax.set_xlabel('Severity Level', color='white')
-            ax.set_ylabel('Count', color='white')
-            st.pyplot(fig)
-        else:
-            st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
+        ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
+        ax.set_xlabel('Severity Level', color='white')
+        ax.set_ylabel('Count', color='white')
+        st.pyplot(fig)
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
@@ -870,236 +810,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-jupyter code:
-# **Predicting Traffic Accident Severity Using Machine Learning**
-
-### **CPT6314 Final Year Project (FYP) 2**
-
-#### **Narmatha A/P Kathiravan (241UC2408K)**
-
-# Import necessary libraries
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import warnings
-warnings.filterwarnings('ignore')
-
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score
-from imblearn.over_sampling import SMOTE
-from collections import Counter
-import xgboost as xgb
-import folium
-
-# Load the dataset
-df = pd.read_csv('filtered_crash_data.csv')
-
-**Data Validation: Before Cleaning**
-
-print("Initial Data Validation:")
-print("Missing Values:\n", df.isnull().sum())
-print("Duplicates:", df.duplicated().sum())
-
-**Data Cleaning**
-
-# Drop duplicates to prevent bias
-df.drop_duplicates(inplace=True)
-
-# Handle missing values: fill numeric columns with median, categorical with mode
-df.fillna(df.median(numeric_only=True), inplace=True)
-df.fillna(df.mode().iloc[0], inplace=True)
-
-# === Data Validation: After Cleaning ===
-print("\nData Validation After Cleaning:")
-print("Remaining Missing Values:\n", df.isnull().sum())
-print("Remaining Duplicates:", df.duplicated().sum())
-
-
-**Feature Engineering**
-
-label_encoders = {}
-for col in df.select_dtypes(include='object').columns:
-    if col != 'Location':  
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        label_encoders[col] = le
-
-# Normalize numeric columns
-target_col = 'Injury Severity'
-numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
-scaler = StandardScaler()
-df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-
-# --- Validation after preprocessing ---
-print("Data Types After Encoding:\n", df.dtypes)
-print("\nStatistical Summary After Scaling:\n", df.describe())
-
-**Exploratory Data Analysis (EDA)**
-
-# Count plot for target variable
-sns.countplot(data=df, x='Injury Severity')
-plt.title('Distribution of Injury Severity')
-plt.show()
-
-
-# Correlation Heatmap
-eda_cols = [
-    'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
-    'Traffic Control', 'Weather', 'Surface Condition', 'Light',
-    'Speed Limit', 'Driver Substance Abuse'
-]
-eda_in_df = [col for col in eda_cols if col in df.columns]
-
-plt.figure(figsize=(10, 6))
-sns.heatmap(df[eda_in_df + [target_col]].corr(), cmap='coolwarm', annot=False)
-plt.title('Correlation Heatmap (Accident Features)')
-plt.show()
-
-
-# Extract coordinates
-location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
-df['latitude'] = location[0].astype(float)
-df['longitude'] = location[1].astype(float)
-
-# Base map with black tiles
-center_lat = df['latitude'].mean()
-center_lon = df['longitude'].mean()
-accident_map = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='CartoDB dark_matter')
-
-
-sample_df = df.sample(n=1000, random_state=42)
-
-# Add clear red points
-for _, row in sample_df.iterrows():
-    folium.CircleMarker(
-        location=[row['latitude'], row['longitude']],
-        radius=3,
-        color='red',
-        fill=True,
-        fill_color='red',
-        fill_opacity=0.9
-    ).add_to(accident_map)
-
-# Display
-accident_map
-
-
-
-**Model Implementation**
-
-# --- Feature and Target Split ---
-X = df.drop(['Injury Severity', 'Location'], axis=1)
-y = df['Injury Severity']
-
-# --- Train-Test Split BEFORE SMOTE ---
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-
-# --- Apply SMOTE ONLY on Training Set ---
-print("Before SMOTE:", Counter(y_train))
-smote = SMOTE(random_state=42)
-X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-print("After SMOTE:", Counter(y_train_resampled))
-
-
-# Model evaluation function
-model_scores = {}
-
-def evaluate_model(model, name):
-    y_pred = model.predict(X_test)
-    print(f"\n{name} Evaluation:")
-    print(confusion_matrix(y_test, y_pred))
-    print(classification_report(y_test, y_pred))
-    
-    acc = accuracy_score(y_test, y_pred) * 100
-    prec = precision_score(y_test, y_pred, average='weighted') * 100
-    rec = recall_score(y_test, y_pred, average='weighted') * 100
-    f1 = f1_score(y_test, y_pred, average='weighted') * 100
-    model_scores[name] = [acc, prec, rec, f1]
-
-**Models Used**
-
-# Logistic Regression
-log_model = LogisticRegression(max_iter=1000)
-log_model.fit(X_train, y_train)
-evaluate_model(log_model, "Logistic Regression")
-
-# Random Forest
-rf_model = RandomForestClassifier(random_state=42)
-rf_model.fit(X_train, y_train)
-evaluate_model(rf_model, "Random Forest")
-
-# XGBoost
-xgb_model = xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss')
-xgb_model.fit(X_train, y_train)
-evaluate_model(xgb_model, "XGBoost")
-
-# Artificial Neural Network
-ann_model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
-ann_model.fit(X_train, y_train)
-evaluate_model(ann_model, "Artificial Neural Network")
-
-**Model Performance Comparison**
-
-# Model Comparison Metrics
-metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
-x = np.arange(len(metrics))
-width = 0.2
-
-plt.figure(figsize=(10,6))
-plt.bar(x - width*1.5, model_scores['Logistic Regression'], width, label='LR')
-plt.bar(x - width*0.5, model_scores['Random Forest'], width, label='RF')
-plt.bar(x + width*0.5, model_scores['XGBoost'], width, label='XGB')
-plt.bar(x + width*1.5, model_scores['Artificial Neural Network'], width, label='ANN')
-plt.xticks(x, metrics)
-plt.ylim(0, 100)
-plt.title('Model Comparison Metrics')
-plt.ylabel('Score (%)')
-plt.legend()
-plt.grid(True, linestyle='--', alpha=0.6)
-plt.tight_layout()
-plt.show()
-
-**Data Validation**
-
-**Feature Importance Visualization**
-
-importances_dict = {}
-
-# 1. Random Forest Feature Importance
-importances_dict['Random Forest'] = rf_model.feature_importances_
-
-# 2. XGBoost Feature Importance
-importances_dict['XGBoost'] = xgb_model.feature_importances_
-
-# 3. Logistic Regression (absolute coefficients)
-lr_importance = np.abs(log_model.coef_[0])
-importances_dict['Logistic Regression'] = lr_importance / np.sum(lr_importance)
-
-# 4. ANN (absolute first-layer weights)
-ann_importance = np.mean(np.abs(ann_model.coefs_[0]), axis=1)
-importances_dict['Artificial Neural Network'] = ann_importance / np.sum(ann_importance)
-
-# Create subplots
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-axes = axes.flatten()
-
-# Plot each model's feature importances
-for idx, (model_name, importances) in enumerate(importances_dict.items()):
-    sorted_idx = np.argsort(importances)[::-1]
-    top_features = X.columns[sorted_idx][:10]
-    top_importances = importances[sorted_idx][:10]
-    
-    sns.barplot(x=top_importances, y=top_features, ax=axes[idx], palette='viridis')
-    axes[idx].set_title(f'{model_name} Feature Importance')
-    axes[idx].set_xlabel("Importance")
-    axes[idx].set_ylabel("Feature")
-
-plt.suptitle('Top 10 Feature Importances per Model', fontsize=16, fontweight='bold', y=1.02)
-plt.tight_layout()
-plt.show()
