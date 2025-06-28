@@ -353,7 +353,7 @@ def render_data_analysis():
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
 
-with st.expander("Target Variable Distribution", expanded=True):
+    with st.expander("Target Variable Distribution", expanded=True):
     if st.session_state.target_col in df.columns:
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
