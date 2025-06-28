@@ -183,9 +183,9 @@ if 'models' not in st.session_state:
 if 'scores_df' not in st.session_state:
     st.session_state.scores_df = pd.DataFrame()
 if 'target_col' not in st.session_state:
-    st.session_state.target_col = 'Severity'
+    st.session_state.target_col = 'Injury Severity'
 if 'default_dataset' not in st.session_state:
-    st.session_state.default_dataset = 'https://raw.githubusercontent.com/plotly/datasets/master/US_Accidents_Dec21_updated_small.csv'
+    st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
 if 'is_default_data' not in st.session_state:
@@ -214,9 +214,13 @@ def preprocess_data(df, is_default=False):
     df.fillna(df.mode().iloc[0], inplace=True)
     
     # Feature engineering - location extraction
-    if 'Start_Lat' in df.columns and 'Start_Lng' in df.columns:
-        df['latitude'] = df['Start_Lat']
-        df['longitude'] = df['Start_Lng']
+    if 'Location' in df.columns:
+        try:
+            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
+            df['latitude'] = location[0].astype(float)
+            df['longitude'] = location[1].astype(float)
+        except:
+            pass
     
     # Try to identify target column
     target_col = st.session_state.target_col
@@ -229,7 +233,7 @@ def preprocess_data(df, is_default=False):
     # Encode categorical columns (excluding Location)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        if col not in ['Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng']:
+        if col != 'Location':
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col].astype(str))  # Ensure string type before encoding
             label_encoders[col] = le
@@ -247,7 +251,7 @@ def preprocess_data(df, is_default=False):
 
 def prepare_model_data(df, target_col):
     # Drop location columns and target
-    X = df.drop([target_col, 'Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng'], axis=1, errors='ignore')
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     
     # Ensure y is numeric
