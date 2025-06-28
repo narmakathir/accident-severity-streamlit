@@ -75,6 +75,12 @@ st.markdown("""
         color: white;
     }
     
+    /* Active button style */
+    .stButton>button[kind="primary"] {
+        background-color: #3A4D8F !important;
+        font-weight: 500;
+    }
+    
     /* Widgets */
     .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
         background-color: #1E2130;
@@ -130,7 +136,7 @@ st.markdown("""
         font-size: 1.2em;
         font-weight: bold;
         margin-bottom: 10px;
-        color: #808080;  /* Changed from blue to grey */
+        color: #4A8DF8;
     }
     
     /* Navigation button styling */
@@ -149,6 +155,11 @@ st.markdown("""
     
     .nav-button:hover {
         background-color: #2A3459;
+    }
+    
+    .nav-button.active {
+        background-color: #3A4D8F;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -584,7 +595,8 @@ def render_prediction():
                 input_df = pd.DataFrame([input_data])
                 try:
                     prediction = model.predict(input_df)[0]
-                    confidence = np.max(model.predict_proba(input_df)[0]) * 100
+                    probs = model.predict_proba(input_df)[0]
+                    confidence = np.max(probs) * 100
 
                     if st.session_state.target_col in st.session_state.label_encoders:
                         severity_label = st.session_state.label_encoders[st.session_state.target_col].inverse_transform([prediction])[0]
@@ -600,7 +612,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #808080;">{severity_label}</h2>  <!-- Changed from blue to grey -->
+                                <h2 style="color: #4A8DF8;">{severity_label}</h2>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -608,9 +620,25 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #808080;">{confidence:.2f}%</h2>  <!-- Changed from blue to grey -->
+                                <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
                             </div>
                             """, unsafe_allow_html=True)
+
+                        # Show probability distribution
+                        if st.session_state.target_col in st.session_state.label_encoders:
+                            st.subheader("Probability Distribution")
+                            prob_df = pd.DataFrame({
+                                'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
+                                'Probability': probs * 100
+                            })
+
+                            fig, ax = plt.subplots(figsize=(10, 4))
+                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
+                                        ax=ax, palette="coolwarm")
+                            ax.set_title('Severity Probability Distribution', color='white')
+                            ax.set_xlabel('Severity Level', color='white')
+                            ax.set_ylabel('Probability (%)', color='white')
+                            st.pyplot(fig)
                     
                 except Exception as e:
                     st.error(f"Prediction failed: {str(e)}")
@@ -648,6 +676,21 @@ def render_reports():
             'color': 'white',
             'border-color': '#2A3459'
         }))
+
+    with st.expander("Missing Values Report"):
+        st.markdown("""
+        <div class="card">
+            <div class="card-title">Data Completeness</div>
+            <p>Analysis of missing values in the dataset.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        missing_data = st.session_state.current_df.isnull().sum()
+        missing_data = missing_data[missing_data > 0]
+        if len(missing_data) > 0:
+            st.warning("Columns with missing values:")
+            st.dataframe(missing_data.reset_index().rename(columns={'index': 'Column', 0: 'Missing Values'}))
+        else:
+            st.success("No missing values found in the dataset.")
 
 def render_help():
     st.title("User Guide")
@@ -746,6 +789,40 @@ def render_admin():
             if st.button("Update System with New Dataset", key="update_dataset"):
                 with st.spinner("Processing new dataset and retraining models..."):
                     handle_dataset_upload(uploaded_file)
+
+    with st.expander("System Information"):
+        st.subheader("System Information")
+        info_col1, info_col2 = st.columns(2)
+
+        with info_col1:
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">Current Target Variable</div>
+                <h3>{st.session_state.target_col}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">Number of Features</div>
+                <h3>{len(st.session_state.X.columns) if st.session_state.X is not None else 0}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with info_col2:
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">Number of Models</div>
+                <h3>{len(st.session_state.models)}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">Dataset Rows</div>
+                <h3>{len(st.session_state.current_df)}</h3>
+            </div>
+            """, unsafe_allow_html=True)
     
     with st.expander("System Maintenance"):
         st.markdown("""
@@ -790,6 +867,11 @@ def create_sidebar():
     for page in pages:
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
+    
+    # Highlight the current page
+    for page in pages:
+        if page == st.session_state.current_page:
+            st.sidebar.button(page, key=f"active_{page}", type="primary")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### System Info")
