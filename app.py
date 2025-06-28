@@ -8,15 +8,15 @@ import os
 import tempfile
 import folium
 from streamlit_folium import folium_static
+from collections import Counter
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
 from imblearn.over_sampling import SMOTE
-from collections import Counter
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
@@ -188,50 +188,10 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
-if 'X_train_resampled' not in st.session_state:
-    st.session_state.X_train_resampled = None
-if 'y_train_resampled' not in st.session_state:
-    st.session_state.y_train_resampled = None
 
 # --- Navigation Functions ---
 def navigate_to(page):
     st.session_state.current_page = page
-
-# --- Normalize Text Values ---
-def normalize_categories(df, custom_mappings=None):
-    default_mappings = {
-        'Weather Condition': {
-            'Raining': 'Rain',
-            'Rainy': 'Rain',
-            'Drizzling': 'Rain',
-            'Sun': 'Sunny',
-            'Clear': 'Sunny',
-            'Foggy': 'Fog',
-            'Overcast': 'Cloudy'
-        },
-        'Road Condition': {
-            'Wet': 'Wet',
-            'Dry': 'Dry',
-            'Snowy': 'Snow/Ice',
-            'Snow/Ice': 'Snow/Ice',
-            'Icy': 'Snow/Ice'
-        },
-        'Light Condition': {
-            'Dark - No Street Lights': 'Dark',
-            'Dark - Street Lights Off': 'Dark',
-            'Dark - Street Lights On': 'Dark',
-            'Daylight': 'Daylight'
-        },
-    }
-
-    mappings = custom_mappings if custom_mappings else default_mappings
-
-    for col, replacements in mappings.items():
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip().str.title()
-            df[col] = df[col].replace(replacements)
-
-    return df
 
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
@@ -241,43 +201,35 @@ def load_default_data():
     return preprocess_data(df)
 
 def preprocess_data(df):
-    # Basic preprocessing
+    # Basic preprocessing - matching Jupyter notebook
     df = df.copy()
+    
+    # Drop duplicates to prevent bias (as in Jupyter notebook)
     df.drop_duplicates(inplace=True)
+    
+    # Handle missing values: fill numeric columns with median, categorical with mode (as in Jupyter notebook)
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    # Extract coordinates from Location column
+    # Extract coordinates from Location column (as in Jupyter notebook)
     if 'Location' in df.columns:
         try:
-            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
             df['latitude'] = location[0].astype(float)
             df['longitude'] = location[1].astype(float)
-            df.dropna(subset=['latitude', 'longitude'], inplace=True)
         except:
             pass
 
-    # Try to identify target column
-    target_col = st.session_state.target_col
-    if target_col not in df.columns:
-        possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
-        if possible_targets:
-            target_col = possible_targets[0]
-            st.session_state.target_col = target_col
-
-    # Normalize categories with empty custom mappings (use defaults)
-    df = normalize_categories(df, custom_mappings={})
-
-    # Encode categorical columns
+    # Encode categorical columns (as in Jupyter notebook)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        if col != 'Location':  # Skip location column
-            df[col] = df[col].astype(str).str.strip().str.title()
+        if col != 'Location':
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
 
-    # Scale numeric features
+    # Normalize numeric columns (as in Jupyter notebook)
+    target_col = st.session_state.target_col
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
     if len(numeric_cols) > 0:
         scaler = StandardScaler()
@@ -286,39 +238,45 @@ def preprocess_data(df):
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
+    # Feature and target split (as in Jupyter notebook)
     X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
+    
+    # Try to remove location columns if they exist
+    loc_cols = [col for col in X.columns if 'location' in col.lower() or col in ['latitude', 'longitude']]
+    if loc_cols:
+        X = X.drop(loc_cols, axis=1)
+    
     y = df[target_col]
     
-    # Train-test split with stratification
+    # Train-test split with stratification (as in Jupyter notebook)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only on training set
+    # Apply SMOTE ONLY on Training Set (as in Jupyter notebook)
     smote = SMOTE(random_state=42)
     X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     
-    return X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled
+    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
 @st.cache_resource
-def train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test):
+def train_models(X_train, y_train, X_test, y_test):
+    # Models with same hyperparameters as Jupyter notebook
     models = {
-        'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+        'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
+    
     trained_models = {}
     model_scores = []
 
     for name, model in models.items():
         try:
-            # Train on resampled data except for XGBoost which handles imbalance better
-            if name != 'XGBoost':
-                model.fit(X_train_resampled, y_train_resampled)
-            else:
-                model.fit(X_train, y_train)
-                
+            model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
+            
+            # Calculate metrics (weighted as in Jupyter notebook)
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -326,12 +284,6 @@ def train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test,
 
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
-            
-            # Store detailed metrics
-            st.session_state[f'{name}_metrics'] = {
-                'confusion_matrix': confusion_matrix(y_test, y_pred),
-                'classification_report': classification_report(y_test, y_pred, output_dict=True)
-            }
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -342,8 +294,8 @@ def train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test,
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
     df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled = prepare_model_data(df, target_col)
-    models, scores_df = train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test)
+    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+    models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
     st.session_state.current_df = df
     st.session_state.label_encoders = label_encoders
@@ -355,8 +307,6 @@ if st.session_state.current_df is None:
     st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_test = y_test
-    st.session_state.X_train_resampled = X_train_resampled
-    st.session_state.y_train_resampled = y_train_resampled
 
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
@@ -374,10 +324,10 @@ def handle_dataset_upload(uploaded_file):
 
         # Preprocess the new dataset
         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
-        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test, new_X_train_resampled, new_y_train_resampled = prepare_model_data(new_df, new_target_col)
+        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
 
         # Train models on new data
-        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_train_resampled, new_y_train_resampled, new_X_test, new_y_test)
+        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
 
         # Update session state
         st.session_state.current_df = new_df
@@ -390,8 +340,6 @@ def handle_dataset_upload(uploaded_file):
         st.session_state.X_test = new_X_test
         st.session_state.y_train = new_y_train
         st.session_state.y_test = new_y_test
-        st.session_state.X_train_resampled = new_X_train_resampled
-        st.session_state.y_train_resampled = new_y_train_resampled
         st.session_state.target_col = new_target_col
 
         st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
@@ -434,21 +382,6 @@ def render_data_analysis():
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-
-            # Add severity level labels
-            severity_labels = {
-                0: "No Injury",
-                1: "Minor Injury",
-                2: "Moderate Injury",
-                3: "Serious Injury",
-                4: "Fatal Injury"
-            }
-
-            # Get current labels and replace with severity labels if they match
-            current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
-            new_labels = [severity_labels.get(label, label) for label in current_labels]
-            ax.set_xticklabels(new_labels, rotation=45, ha='right')
-
             ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
             ax.set_xlabel('Severity Level', color='white')
             ax.set_ylabel('Count', color='white')
@@ -458,21 +391,21 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles
+            # Create Folium map with dark tiles (as in Jupyter notebook)
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add points to the map
+            # Add points to the map (red points as in Jupyter notebook)
             for idx, row in df.sample(min(1000, len(df))).iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
                     radius=3,
-                    color='#ff7f0e',
+                    color='red',
                     fill=True,
-                    fill_color='#ff7f0e',
-                    fill_opacity=0.7
+                    fill_color='red',
+                    fill_opacity=0.9
                 ).add_to(m)
 
             folium_static(m, width=1000, height=600)
@@ -481,8 +414,16 @@ def render_data_analysis():
 
     with st.expander("Feature Correlation Heatmap"):
         try:
-            corr = df.select_dtypes(['number']).corr()
-            fig, ax = plt.subplots(figsize=(12, 10))
+            # Use same columns as Jupyter notebook
+            eda_cols = [
+                'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
+                'Traffic Control', 'Weather', 'Surface Condition', 'Light',
+                'Speed Limit', 'Driver Substance Abuse'
+            ]
+            eda_in_df = [col for col in eda_cols if col in df.columns]
+            
+            corr = df[eda_in_df + [st.session_state.target_col]].corr()
+            fig, ax = plt.subplots(figsize=(10, 6))
             sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax, center=0,
                        cbar_kws={'label': 'Correlation Coefficient'})
             ax.set_title("Feature Correlation Heatmap", color='white', pad=20)
@@ -515,29 +456,6 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
-            
-            # Detailed model metrics
-            selected_model = st.selectbox("View detailed metrics for:", list(st.session_state.models.keys()))
-            
-            if f'{selected_model}_metrics' in st.session_state:
-                metrics = st.session_state[f'{selected_model}_metrics']
-                
-                st.subheader(f"Detailed Metrics for {selected_model}")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("**Confusion Matrix**")
-                    fig, ax = plt.subplots(figsize=(6, 6))
-                    sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='coolwarm', ax=ax)
-                    ax.set_xlabel('Predicted')
-                    ax.set_ylabel('Actual')
-                    st.pyplot(fig)
-                
-                with col2:
-                    st.markdown("**Classification Report**")
-                    report_df = pd.DataFrame(metrics['classification_report']).transpose()
-                    st.dataframe(report_df.style.format("{:.2f}"))
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
@@ -546,6 +464,7 @@ def render_data_analysis():
             model = st.session_state.models[model_name]
 
             try:
+                # Get feature importance as in Jupyter notebook
                 if hasattr(model, 'feature_importances_'):
                     importances = model.feature_importances_
                 elif hasattr(model, 'coef_'):
@@ -772,10 +691,10 @@ def render_help():
             <div class="card-title">Technical Information</div>
             <p>The application uses the following machine learning models:</p>
             <ul>
-                <li>Logistic Regression</li>
-                <li>Random Forest</li>
-                <li>XGBoost</li>
-                <li>Artificial Neural Network</li>
+                <li>Logistic Regression (max_iter=1000)</li>
+                <li>Random Forest (random_state=42)</li>
+                <li>XGBoost (random_state=42, use_label_encoder=False, eval_metric='mlogloss')</li>
+                <li>Artificial Neural Network (hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)</li>
             </ul>
             <p>All visualizations use a consistent dark theme for better readability.</p>
         </div>
@@ -854,8 +773,8 @@ def render_admin():
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
-                X, y, X_train, X_test, y_train, y_test, X_train_resampled, y_train_resampled = prepare_model_data(df, target_col)
-                models, scores_df = train_models(X_train, y_train, X_train_resampled, y_train_resampled, X_test, y_test)
+                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+                models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
                 st.session_state.current_df = df
                 st.session_state.label_encoders = label_encoders
@@ -867,8 +786,7 @@ def render_admin():
                 st.session_state.X_test = X_test
                 st.session_state.y_train = y_train
                 st.session_state.y_test = y_test
-                st.session_state.X_train_resampled = X_train_resampled
-                st.session_state.y_train_resampled = y_train_resampled
+                st.session_state.target_col = target_col
 
                 st.success("System reset to default dataset completed!")
 
