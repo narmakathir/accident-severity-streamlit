@@ -23,13 +23,8 @@ warnings.filterwarnings('ignore')
 
 # --- Custom Dark Theme Configuration ---
 def set_dark_theme():
-    # Set seaborn style
     sns.set_style("darkgrid")
-
-    # Using coolwarm color palette
     PALETTE = sns.color_palette("coolwarm")
-
-    # Set matplotlib rcParams
     plt.rcParams['figure.facecolor'] = '#0E1117'
     plt.rcParams['axes.facecolor'] = '#0E1117'
     plt.rcParams['axes.edgecolor'] = 'white'
@@ -38,7 +33,6 @@ def set_dark_theme():
     plt.rcParams['xtick.color'] = 'white'
     plt.rcParams['ytick.color'] = 'white'
     plt.rcParams['grid.color'] = '#2A3459'
-
     return PALETTE
 
 PALETTE = set_dark_theme()
@@ -46,121 +40,27 @@ PALETTE = set_dark_theme()
 # --- Streamlit Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
-# Custom CSS for dark theme with enhanced styling
+# Custom CSS for dark theme
 st.markdown("""
 <style>
-    /* Main page background */
-    .stApp {
-        background-color: #0E1117;
-        color: white;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #0F131D !important;
-        border-right: 1px solid #2A3459;
-    }
-    
-    /* Navigation buttons */
-    .stButton>button {
-        background-color: #1E2130;
-        color: white;
-        border-color: #2A3459;
-        width: 100%;
-        margin: 5px 0;
-    }
-    
-    .stButton>button:hover {
-        background-color: #2A3459;
-        color: white;
-    }
-    
-    /* Active button style */
-    .stButton>button[kind="primary"] {
-        background-color: #3A4D8F !important;
-        font-weight: 500;
-    }
-    
-    /* Widgets */
-    .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
-        background-color: #1E2130;
-        color: white;
-        border-color: #2A3459;
-    }
-    
-    /* Text input */
-    .stTextInput input {
-        color: white !important;
-    }
-    
-    /* Select boxes */
-    .stSelectbox select {
-        color: white !important;
-    }
-    
-    /* Number input */
-    .stNumberInput input {
-        color: white !important;
-    }
-    
-    /* Dataframes */
-    .stDataFrame {
-        background-color: #1E2130;
-    }
-    
-    /* Tables */
-    table {
-        color: white !important;
-    }
-    
-    /* Markdown text color */
-    .stMarkdown {
-        color: white;
-    }
-    
-    /* Divider color */
-    hr {
-        border-color: #2A3459;
-    }
-    
-    /* Card styling */
-    .card {
-        background-color: #1E2130;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
-        border: 1px solid #2A3459;
-    }
-    
-    .card-title {
-        font-size: 1.2em;
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #4A8DF8;
-    }
-    
-    /* Navigation button styling */
-    .nav-button {
-        background-color: #1E2130;
-        color: white;
-        border: 1px solid #2A3459;
-        border-radius: 4px;
-        padding: 10px 15px;
-        margin: 5px 0;
-        width: 100%;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    
-    .nav-button:hover {
-        background-color: #2A3459;
-    }
-    
-    .nav-button.active {
-        background-color: #3A4D8F;
-        font-weight: bold;
-    }
+    .stApp { background-color: #0E1117; color: white; }
+    .css-1d391kg { background-color: #0F131D !important; border-right: 1px solid #2A3459; }
+    .stButton>button { background-color: #1E2130; color: white; border-color: #2A3459; width: 100%; margin: 5px 0; }
+    .stButton>button:hover { background-color: #2A3459; color: white; }
+    .stButton>button[kind="primary"] { background-color: #3A4D8F !important; font-weight: 500; }
+    .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as { 
+        background-color: #1E2130; color: white; border-color: #2A3459; }
+    .stTextInput input, .stSelectbox select, .stNumberInput input { color: white !important; }
+    .stDataFrame { background-color: #1E2130; }
+    table { color: white !important; }
+    .stMarkdown { color: white; }
+    hr { border-color: #2A3459; }
+    .card { background-color: #1E2130; border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid #2A3459; }
+    .card-title { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; color: #4A8DF8; }
+    .nav-button { background-color: #1E2130; color: white; border: 1px solid #2A3459; border-radius: 4px; 
+                 padding: 10px 15px; margin: 5px 0; width: 100%; text-align: center; cursor: pointer; transition: all 0.3s; }
+    .nav-button:hover { background-color: #2A3459; }
+    .nav-button.active { background-color: #3A4D8F; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,12 +68,15 @@ st.markdown("""
 PROJECT_OVERVIEW = """
 <div class="card">
     <div class="card-title">Project Overview</div>
-    <p>Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.</p>
-    <p>This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful data to improve road safety and management.</p>
+    <p>Traffic accidents are a major problem worldwide, causing several fatalities, damage to property, and loss of productivity. 
+    Predicting accident severity based on contributors such as weather conditions, road conditions, types of vehicles, and drivers 
+    enables the authorities to take necessary actions to minimize the risk and develop better emergency responses.</p>
+    <p>This project uses machine learning techniques to analyze past traffic data for accident severity prediction and present useful 
+    data to improve road safety and management.</p>
 </div>
 """
 
-# --- Session State for Dynamic Updates ---
+# --- Session State Initialization ---
 if 'current_df' not in st.session_state:
     st.session_state.current_df = None
 if 'label_encoders' not in st.session_state:
@@ -188,12 +91,14 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
+if 'model_metrics' not in st.session_state:
+    st.session_state.model_metrics = {}
 
 # --- Navigation Functions ---
 def navigate_to(page):
     st.session_state.current_page = page
 
-# --- Load Dataset ---
+# --- Data Loading and Preprocessing ---
 @st.cache_data(persist="disk")
 def load_default_data():
     url = st.session_state.default_dataset
@@ -213,7 +118,7 @@ def preprocess_data(df):
         df['latitude'] = location[0].astype(float)
         df['longitude'] = location[1].astype(float)
 
-    # Try to identify target column
+    # Identify target column
     target_col = st.session_state.target_col
     if target_col not in df.columns:
         possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
@@ -251,7 +156,7 @@ def prepare_model_data(df, target_col):
     
     return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
-# --- Train Models ---
+# --- Model Training ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
     models = {
@@ -260,8 +165,10 @@ def train_models(X_train, y_train, X_test, y_test):
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
+    
     trained_models = {}
     model_scores = []
+    model_metrics = {}
 
     for name, model in models.items():
         try:
@@ -277,72 +184,36 @@ def train_models(X_train, y_train, X_test, y_test):
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
             
-            # Store confusion matrix and classification report
-            st.session_state[f'{name}_cm'] = confusion_matrix(y_test, y_pred)
-            st.session_state[f'{name}_cr'] = classification_report(y_test, y_pred)
+            # Store metrics
+            model_metrics[name] = {
+                'confusion_matrix': confusion_matrix(y_test, y_pred),
+                'classification_report': classification_report(y_test, y_pred)
+            }
             
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
 
     scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
-    return trained_models, scores_df
+    return trained_models, scores_df, model_metrics
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
     df, label_encoders, target_col = load_default_data()
     X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+    models, scores_df, model_metrics = train_models(X_train, y_train, X_test, y_test)
 
     st.session_state.current_df = df
     st.session_state.label_encoders = label_encoders
     st.session_state.models = models
     st.session_state.scores_df = scores_df
+    st.session_state.model_metrics = model_metrics
     st.session_state.X = X
     st.session_state.y = y
     st.session_state.X_train = X_train
     st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_test = y_test
-
-# --- Admin Page Functions ---
-def handle_dataset_upload(uploaded_file):
-    try:
-        # Save uploaded file to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_path = tmp_file.name
-
-        # Read the CSV file
-        new_df = pd.read_csv(tmp_path)
-
-        # Clean up the temporary file
-        os.unlink(tmp_path)
-
-        # Preprocess the new dataset
-        new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
-        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
-
-        # Train models on new data
-        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
-
-        # Update session state
-        st.session_state.current_df = new_df
-        st.session_state.label_encoders = new_label_encoders
-        st.session_state.models = new_models
-        st.session_state.scores_df = new_scores_df
-        st.session_state.X = new_X
-        st.session_state.y = new_y
-        st.session_state.X_train = new_X_train
-        st.session_state.X_test = new_X_test
-        st.session_state.y_train = new_y_train
-        st.session_state.y_test = new_y_test
-        st.session_state.target_col = new_target_col
-
-        st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
-
-    except Exception as e:
-        st.error(f"Error processing uploaded file: {str(e)}")
 
 # --- Page Rendering Functions ---
 def render_home():
@@ -358,7 +229,6 @@ def render_home():
     
     st.markdown("---")
     
-    # Key metrics cards
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Records", len(st.session_state.current_df))
@@ -369,18 +239,13 @@ def render_home():
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
-    st.markdown("Explore key patterns and model performance.")
-
-    # Get current data from session state
     df = st.session_state.current_df
-    scores_df = st.session_state.scores_df
 
     with st.expander("Target Variable Distribution", expanded=True):
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
 
-            # Add severity level labels
             severity_labels = {
                 0: "No Injury",
                 1: "Minor Injury",
@@ -389,7 +254,6 @@ def render_data_analysis():
                 4: "Fatal Injury"
             }
 
-            # Get current labels and replace with severity labels if they match
             current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
             new_labels = [severity_labels.get(label, label) for label in current_labels]
             ax.set_xticklabels(new_labels, rotation=45, ha='right')
@@ -398,18 +262,13 @@ def render_data_analysis():
             ax.set_xlabel('Severity Level', color='white')
             ax.set_ylabel('Count', color='white')
             st.pyplot(fig)
-        else:
-            st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
-                          tiles='CartoDB dark_matter',
-                          attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
+                          tiles='CartoDB dark_matter')
 
-            # Add red points to the map
             sample_df = df.sample(min(1000, len(df)))
             for _, row in sample_df.iterrows():
                 folium.CircleMarker(
@@ -422,8 +281,6 @@ def render_data_analysis():
                 ).add_to(m)
 
             folium_static(m, width=1000, height=600)
-        else:
-            st.warning("No location data found in dataset.")
 
     with st.expander("Feature Correlation Heatmap"):
         try:
@@ -438,19 +295,16 @@ def render_data_analysis():
 
     if not st.session_state.scores_df.empty:
         with st.expander("Model Performance Metrics"):
-            # Format the scores to show 2 decimal places
             formatted_scores = st.session_state.scores_df.copy()
             for col in formatted_scores.columns[1:]:
                 formatted_scores[col] = formatted_scores[col].apply(lambda x: f"{x:.2f}")
 
-            # Display as a styled table
             st.table(formatted_scores.style.set_properties(**{
                 'background-color': '#1E2130',
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
             
-            # Performance comparison chart
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -462,27 +316,27 @@ def render_data_analysis():
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
             
-            # Show confusion matrix and classification report for selected model
             model_name = st.selectbox("Select Model for Detailed Report", list(st.session_state.models.keys()))
             
-            st.subheader(f"Confusion Matrix - {model_name}")
-            cm = st.session_state[f'{model_name}_cm']
-            fig, ax = plt.subplots(figsize=(8, 6))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm', ax=ax)
-            ax.set_title(f'Confusion Matrix - {model_name}', color='white')
-            ax.set_xlabel('Predicted', color='white')
-            ax.set_ylabel('Actual', color='white')
-            st.pyplot(fig)
-            
-            st.subheader(f"Classification Report - {model_name}")
-            cr = st.session_state[f'{model_name}_cr']
-            st.text(cr)
+            if model_name in st.session_state.model_metrics:
+                st.subheader(f"Confusion Matrix - {model_name}")
+                cm = st.session_state.model_metrics[model_name]['confusion_matrix']
+                fig, ax = plt.subplots(figsize=(8, 6))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='coolwarm', ax=ax)
+                ax.set_title(f'Confusion Matrix - {model_name}', color='white')
+                ax.set_xlabel('Predicted', color='white')
+                ax.set_ylabel('Actual', color='white')
+                st.pyplot(fig)
+                
+                st.subheader(f"Classification Report - {model_name}")
+                st.text(st.session_state.model_metrics[model_name]['classification_report'])
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
         if model_name in st.session_state.models:
             model = st.session_state.models[model_name]
+            X = st.session_state.X
 
             try:
                 if hasattr(model, 'feature_importances_'):
@@ -497,9 +351,8 @@ def render_data_analysis():
                 importances_vals = importances / importances.sum()
                 sorted_idx = np.argsort(importances_vals)[::-1]
                 
-                # Ensure we don't try to access more features than available
-                n_features = min(10, len(st.session_state.X.columns))
-                top_features = st.session_state.X.columns[sorted_idx][:n_features]
+                n_features = min(10, len(X.columns))
+                top_features = X.columns[sorted_idx][:n_features]
                 top_vals = importances_vals[sorted_idx][:n_features]
 
                 fig, ax = plt.subplots(figsize=(10, 6))
@@ -510,6 +363,8 @@ def render_data_analysis():
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Could not display feature importances: {str(e)}")
+
+# [Rest of the code remains the same for other pages...]
 
 def render_prediction():
     st.title("Accident Severity Prediction")
@@ -529,7 +384,6 @@ def render_prediction():
 
             input_data = {}
             for i, col in enumerate(st.session_state.X.columns):
-                # Alternate between columns
                 current_col = col1 if i % 2 == 0 else col2
 
                 if col in st.session_state.label_encoders:
@@ -537,17 +391,11 @@ def render_prediction():
                     choice = current_col.selectbox(f"{col}", options)
                     input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
                 else:
-                    # Get min/max from the original dataframe (before scaling)
                     col_min = st.session_state.current_df[col].min()
                     col_max = st.session_state.current_df[col].max()
                     col_mean = st.session_state.current_df[col].mean()
                     input_data[col] = current_col.number_input(
-                        f"{col}", 
-                        float(col_min), 
-                        float(col_max), 
-                        float(col_mean),
-                        key=f"input_{col}"
-                    )
+                        f"{col}", float(col_min), float(col_max), float(col_mean), key=f"input_{col}")
 
             if st.button("Predict Severity", key="predict_button"):
                 input_df = pd.DataFrame([input_data])
@@ -561,7 +409,6 @@ def render_prediction():
                     else:
                         severity_label = prediction
 
-                    # Display prediction results
                     with st.container():
                         st.subheader("Prediction Results")
                         res_col1, res_col2 = st.columns(2)
@@ -582,7 +429,6 @@ def render_prediction():
                             </div>
                             """, unsafe_allow_html=True)
 
-                        # Show probability distribution
                         if st.session_state.target_col in st.session_state.label_encoders:
                             st.subheader("Probability Distribution")
                             prob_df = pd.DataFrame({
@@ -591,8 +437,7 @@ def render_prediction():
                             })
 
                             fig, ax = plt.subplots(figsize=(10, 4))
-                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
-                                        ax=ax, palette="coolwarm")
+                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, ax=ax, palette="coolwarm")
                             ax.set_title('Severity Probability Distribution', color='white')
                             ax.set_xlabel('Severity Level', color='white')
                             ax.set_ylabel('Probability (%)', color='white')
@@ -723,12 +568,11 @@ def render_help():
 def render_admin():
     st.title("Administration Dashboard")
 
-    # Simple password protection
     password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
 
     if password != "admin1":
         st.error("Incorrect password. Access denied.")
-        st.stop()  # This stops execution if password is wrong
+        st.stop()
 
     st.warning("You are in administrator mode. Changes here will affect all users.")
 
@@ -746,7 +590,34 @@ def render_admin():
             st.info("File uploaded successfully. Click the button below to update the system.")
             if st.button("Update System with New Dataset", key="update_dataset"):
                 with st.spinner("Processing new dataset and retraining models..."):
-                    handle_dataset_upload(uploaded_file)
+                    try:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+                            tmp_file.write(uploaded_file.getvalue())
+                            tmp_path = tmp_file.name
+
+                        new_df = pd.read_csv(tmp_path)
+                        os.unlink(tmp_path)
+
+                        new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
+                        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
+                        new_models, new_scores_df, new_model_metrics = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
+
+                        st.session_state.current_df = new_df
+                        st.session_state.label_encoders = new_label_encoders
+                        st.session_state.models = new_models
+                        st.session_state.scores_df = new_scores_df
+                        st.session_state.model_metrics = new_model_metrics
+                        st.session_state.X = new_X
+                        st.session_state.y = new_y
+                        st.session_state.X_train = new_X_train
+                        st.session_state.X_test = new_X_test
+                        st.session_state.y_train = new_y_train
+                        st.session_state.y_test = new_y_test
+                        st.session_state.target_col = new_target_col
+
+                        st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
+                    except Exception as e:
+                        st.error(f"Error processing uploaded file: {str(e)}")
 
     with st.expander("System Information"):
         st.subheader("System Information")
@@ -794,12 +665,13 @@ def render_admin():
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
                 X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-                models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                models, scores_df, model_metrics = train_models(X_train, y_train, X_test, y_test)
 
                 st.session_state.current_df = df
                 st.session_state.label_encoders = label_encoders
                 st.session_state.models = models
                 st.session_state.scores_df = scores_df
+                st.session_state.model_metrics = model_metrics
                 st.session_state.X = X
                 st.session_state.y = y
                 st.session_state.X_train = X_train
@@ -814,10 +686,8 @@ def render_admin():
 def create_sidebar():
     st.sidebar.title("Navigation")
     
-    # Admin mode toggle
     admin_mode = st.sidebar.checkbox("Admin Mode", key="admin_mode")
     
-    # Navigation buttons
     pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
     if admin_mode:
         pages.append("Admin")
@@ -826,7 +696,6 @@ def create_sidebar():
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
     
-    # Highlight the current page
     for page in pages:
         if page == st.session_state.current_page:
             st.sidebar.button(page, key=f"active_{page}", type="primary")
@@ -840,7 +709,6 @@ def create_sidebar():
 def main():
     create_sidebar()
     
-    # Page routing
     if st.session_state.current_page == "Home":
         render_home()
     elif st.session_state.current_page == "Data Analysis":
