@@ -233,7 +233,7 @@ def preprocess_data(df):
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':
             le = LabelEncoder()
-            df[col] = le.fit_transform(df[col])
+            df[col] = le.fit_transform(df[col].astype(str))  # Ensure string type before encoding
             label_encoders[col] = le
     
     # Scale numeric features (excluding target)
@@ -245,8 +245,17 @@ def preprocess_data(df):
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
+    # Ensure we have numeric data for SMOTE
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore').select_dtypes(include=['number'])
     y = df[target_col]
+    
+    # Convert y to numeric if needed
+    if y.dtype == 'object':
+        y = pd.to_numeric(y, errors='coerce')
+        # Drop rows where y couldn't be converted
+        valid_idx = y.notna()
+        X = X[valid_idx]
+        y = y[valid_idx]
     
     # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(
@@ -254,12 +263,13 @@ def prepare_model_data(df, target_col):
     )
     
     # Apply SMOTE only to training data (like Jupyter notebook)
-    print("Before SMOTE:", Counter(y_train))
-    smote = SMOTE(random_state=42)
-    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-    print("After SMOTE:", Counter(y_train_resampled))
-    
-    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    try:
+        smote = SMOTE(random_state=42)
+        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+        return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    except Exception as e:
+        st.error(f"SMOTE failed: {str(e)}. Using original data.")
+        return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -301,7 +311,7 @@ def train_models(X_train, y_train, X_test, y_test):
             
             # Store full evaluation metrics
             st.session_state[f'{name}_cm'] = confusion_matrix(y_test, y_pred)
-            st.session_state[f'{name}_cr'] = classification_report(y_test, y_pred)
+            st.session_state[f'{name}_cr'] = classification_report(y_test, y_pred, output_dict=True)
             
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
@@ -315,20 +325,23 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
-    df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-    models, scores_df = train_models(X_train, y_train, X_test, y_test)
-    
-    st.session_state.current_df = df
-    st.session_state.label_encoders = label_encoders
-    st.session_state.models = models
-    st.session_state.scores_df = scores_df
-    st.session_state.X = X
-    st.session_state.y = y
-    st.session_state.X_train = X_train
-    st.session_state.X_test = X_test
-    st.session_state.y_train = y_train
-    st.session_state.y_test = y_test
+    try:
+        df, label_encoders, target_col = load_default_data()
+        X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+        models, scores_df = train_models(X_train, y_train, X_test, y_test)
+        
+        st.session_state.current_df = df
+        st.session_state.label_encoders = label_encoders
+        st.session_state.models = models
+        st.session_state.scores_df = scores_df
+        st.session_state.X = X
+        st.session_state.y = y
+        st.session_state.X_train = X_train
+        st.session_state.X_test = X_test
+        st.session_state.y_train = y_train
+        st.session_state.y_test = y_test
+    except Exception as e:
+        st.error(f"Initialization failed: {str(e)}")
 
 # --- Admin Page Functions ---
 def handle_dataset_upload(uploaded_file):
@@ -494,7 +507,9 @@ def render_data_analysis():
             st.write(st.session_state[f'{selected_model}_cm'])
             
             st.markdown(f"**Classification Report for {selected_model}**")
-            st.text(st.session_state[f'{selected_model}_cr'])
+            cr = st.session_state[f'{selected_model}_cr']
+            cr_df = pd.DataFrame(cr).transpose()
+            st.dataframe(cr_df.style.format("{:.2f}"))
     
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
