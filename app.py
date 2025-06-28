@@ -8,6 +8,8 @@ import os
 import tempfile
 import folium
 from streamlit_folium import folium_static
+from imblearn.over_sampling import SMOTE
+from collections import Counter
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -15,8 +17,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from imblearn.over_sampling import SMOTE
-from collections import Counter
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
@@ -183,9 +183,9 @@ if 'models' not in st.session_state:
 if 'scores_df' not in st.session_state:
     st.session_state.scores_df = pd.DataFrame()
 if 'target_col' not in st.session_state:
-    st.session_state.target_col = 'Severity'
+    st.session_state.target_col = 'Injury Severity'
 if 'default_dataset' not in st.session_state:
-    st.session_state.default_dataset = 'https://raw.githubusercontent.com/plotly/datasets/master/US_Accidents_Dec21_updated_small.csv'
+    st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
 if 'is_default_data' not in st.session_state:
@@ -195,6 +195,42 @@ if 'is_default_data' not in st.session_state:
 def navigate_to(page):
     st.session_state.current_page = page
 
+# --- Normalize Text Values ---
+def normalize_categories(df, custom_mappings=None):
+    default_mappings = {
+        'Weather Condition': {
+            'Raining': 'Rain',
+            'Rainy': 'Rain',
+            'Drizzling': 'Rain',
+            'Sun': 'Sunny',
+            'Clear': 'Sunny',
+            'Foggy': 'Fog',
+            'Overcast': 'Cloudy'
+        },
+        'Road Condition': {
+            'Wet': 'Wet',
+            'Dry': 'Dry',
+            'Snowy': 'Snow/Ice',
+            'Snow/Ice': 'Snow/Ice',
+            'Icy': 'Snow/Ice'
+        },
+        'Light Condition': {
+            'Dark - No Street Lights': 'Dark',
+            'Dark - Street Lights Off': 'Dark',
+            'Dark - Street Lights On': 'Dark',
+            'Daylight': 'Daylight'
+        },
+    }
+
+    mappings = custom_mappings if custom_mappings else default_mappings
+
+    for col, replacements in mappings.items():
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().str.title()
+            df[col] = df[col].replace(replacements)
+
+    return df
+
 # --- Load Dataset ---
 @st.cache_data(persist="disk")
 def load_default_data():
@@ -203,174 +239,209 @@ def load_default_data():
     return preprocess_data(df, is_default=True)
 
 def preprocess_data(df, is_default=False):
-    # Basic preprocessing - match Jupyter notebook exactly
+    # Basic preprocessing
     df = df.copy()
     
     # Drop duplicates
     df.drop_duplicates(inplace=True)
     
-    # Handle missing values: fill numeric with median, categorical with mode
-    df.fillna(df.median(numeric_only=True), inplace=True)
-    df.fillna(df.mode().iloc[0], inplace=True)
+    # Handle missing values - first numeric, then categorical
+    numeric_cols = df.select_dtypes(include=np.number).columns
+    if not numeric_cols.empty:
+        df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
     
-    # Feature engineering - location extraction
-    if 'Start_Lat' in df.columns and 'Start_Lng' in df.columns:
-        df['latitude'] = df['Start_Lat']
-        df['longitude'] = df['Start_Lng']
-    
-    # Try to identify target column
+    # Fill remaining categorical columns with mode
+    cat_cols = df.select_dtypes(exclude=np.number).columns
+    for col in cat_cols:
+        if df[col].isnull().any():
+            df[col] = df[col].fillna(df[col].mode()[0])
+
+    # Extract coordinates from Location
+    if 'Location' in df.columns:
+        try:
+            location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
+            df['latitude'] = pd.to_numeric(location[0], errors='coerce')
+            df['longitude'] = pd.to_numeric(location[1], errors='coerce')
+            # Drop rows where coordinates couldn't be parsed
+            df = df.dropna(subset=['latitude', 'longitude'])
+        except Exception as e:
+            print(f"Location parsing failed: {str(e)}")
+
+    # Identify target column
     target_col = st.session_state.target_col
     if target_col not in df.columns:
         possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
         if possible_targets:
             target_col = possible_targets[0]
             st.session_state.target_col = target_col
-    
+
     # Encode categorical columns (excluding Location)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        if col not in ['Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng']:
+        if col != 'Location':  # Skip location column for encoding
             le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))  # Ensure string type before encoding
+            df[col] = le.fit_transform(df[col].astype(str))
             label_encoders[col] = le
-    
+
+    # Ensure target is numeric
+    if df[target_col].dtype == 'object':
+        if target_col in label_encoders:
+            df[target_col] = label_encoders[target_col].transform(df[target_col])
+        else:
+            le = LabelEncoder()
+            df[target_col] = le.fit_transform(df[target_col])
+            label_encoders[target_col] = le
+
     # Scale numeric features (excluding target)
-    numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
+    numeric_cols = df.select_dtypes(include=np.number).columns.difference([target_col])
     if len(numeric_cols) > 0:
         scaler = StandardScaler()
         df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-    
-    # Store whether this is default data
-    st.session_state.is_default_data = is_default
-    
-    return df, label_encoders, target_col
 
-def prepare_model_data(df, target_col):
-    # Drop location columns and target
-    X = df.drop([target_col, 'Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng'], axis=1, errors='ignore')
+    return df, label_encoders, target_col, is_default
+
+def prepare_model_data(df, target_col, is_default=False):
+    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
+    
+    # Remove location columns if they exist
+    loc_cols = [col for col in X.columns if 'location' in col.lower() or col in ['latitude', 'longitude']]
+    if loc_cols:
+        X = X.drop(loc_cols, axis=1)
+
     y = df[target_col]
     
-    # Ensure y is numeric
-    y = y.astype(int)
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Train-test split with stratification
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, stratify=y, random_state=42
-    )
-    
-    # Apply SMOTE only to training data and only for default dataset
-    if st.session_state.is_default_data:
+    # Apply SMOTE only for default dataset and only if needed
+    if is_default and len(np.unique(y_train)) > 1:
         try:
+            print("Before SMOTE:", Counter(y_train))
             smote = SMOTE(random_state=42)
-            X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-            return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+            X_train, y_train = smote.fit_resample(X_train, y_train)
+            print("After SMOTE:", Counter(y_train))
         except Exception as e:
-            st.warning(f"SMOTE failed: {str(e)}. Using original data.")
+            print(f"SMOTE failed: {str(e)}")
+            # Continue with original data if SMOTE fails
     
-    # For non-default data or if SMOTE fails
     return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
-    # Use same models and parameters as Jupyter notebook
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgb.XGBClassifier(
-            random_state=42, 
-            use_label_encoder=False, 
-            eval_metric='mlogloss'
-        ),
-        'Artificial Neural Network': MLPClassifier(
-            hidden_layer_sizes=(100,), 
-            max_iter=300, 
-            activation='relu', 
-            solver='adam', 
-            random_state=42
-        )
+        'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
+        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
     }
-    
     trained_models = {}
     model_scores = []
-    
+
     for name, model in models.items():
         try:
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Calculate metrics (weighted averages)
+            # Calculate metrics
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
             f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
-            
+
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
-            
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
-    
-    scores_df = pd.DataFrame(
-        model_scores, 
-        columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)']
-    )
+
+    scores_df = pd.DataFrame(model_scores, columns=['Model', 'Accuracy (%)', 'Precision (%)', 'Recall (%)', 'F1-Score (%)'])
     return trained_models, scores_df
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
+    df, label_encoders, target_col, is_default = load_default_data()
+    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, is_default)
+    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+
+    st.session_state.current_df = df
+    st.session_state.label_encoders = label_encoders
+    st.session_state.models = models
+    st.session_state.scores_df = scores_df
+    st.session_state.X = X
+    st.session_state.y = y
+    st.session_state.X_train = X_train
+    st.session_state.X_test = X_test
+    st.session_state.y_train = y_train
+    st.session_state.y_test = y_test
+    st.session_state.is_default_data = is_default
+
+# --- Admin Page Functions ---
+def handle_dataset_upload(uploaded_file):
     try:
-        df, label_encoders, target_col = load_default_data()
-        X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-        models, scores_df = train_models(X_train, y_train, X_test, y_test)
-        
-        st.session_state.current_df = df
-        st.session_state.label_encoders = label_encoders
-        st.session_state.models = models
-        st.session_state.scores_df = scores_df
-        st.session_state.X = X
-        st.session_state.y = y
-        st.session_state.X_train = X_train
-        st.session_state.X_test = X_test
-        st.session_state.y_train = y_train
-        st.session_state.y_test = y_test
+        # Save uploaded file to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_path = tmp_file.name
+
+        # Read the CSV file
+        new_df = pd.read_csv(tmp_path)
+
+        # Clean up the temporary file
+        os.unlink(tmp_path)
+
+        # Preprocess the new dataset (not default data, so no SMOTE)
+        new_df, new_label_encoders, new_target_col, _ = preprocess_data(new_df, is_default=False)
+        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col, is_default=False)
+
+        # Train models on new data
+        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
+
+        # Update session state
+        st.session_state.current_df = new_df
+        st.session_state.label_encoders = new_label_encoders
+        st.session_state.models = new_models
+        st.session_state.scores_df = new_scores_df
+        st.session_state.X = new_X
+        st.session_state.y = new_y
+        st.session_state.X_train = new_X_train
+        st.session_state.X_test = new_X_test
+        st.session_state.y_train = new_y_train
+        st.session_state.y_test = new_y_test
+        st.session_state.target_col = new_target_col
+        st.session_state.is_default_data = False
+
+        st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
+
     except Exception as e:
-        st.error(f"Initialization failed: {str(e)}")
+        st.error(f"Error processing uploaded file: {str(e)}")
 
 # --- Page Rendering Functions ---
 def render_home():
     st.title("Traffic Accident Severity Prediction")
     st.markdown(PROJECT_OVERVIEW, unsafe_allow_html=True)
 
-    if st.session_state.current_df is not None:
-        with st.expander("Dataset Preview", expanded=True):
-            st.dataframe(st.session_state.current_df.copy().head().style.set_properties(**{
-                'background-color': '#1E2130',
-                'color': 'white',
-                'border-color': '#2A3459'
-            }))
-        
-        st.markdown("---")
-        
-        # Key metrics cards
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Records", len(st.session_state.current_df))
-        with col2:
-            st.metric("Features Available", len(st.session_state.current_df.columns))
-        with col3:
-            st.metric("Trained Models", len(st.session_state.models))
-    else:
-        st.error("No data loaded. Please check the dataset.")
+    with st.expander("Dataset Preview", expanded=True):
+        st.dataframe(st.session_state.current_df.copy().head().style.set_properties(**{
+            'background-color': '#1E2130',
+            'color': 'white',
+            'border-color': '#2A3459'
+        }))
+    
+    st.markdown("---")
+    
+    # Key metrics cards
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Records", len(st.session_state.current_df))
+    with col2:
+        st.metric("Features Available", len(st.session_state.current_df.columns))
+    with col3:
+        st.metric("Trained Models", len(st.session_state.models))
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
     st.markdown("Explore key patterns and model performance.")
-
-    if st.session_state.current_df is None:
-        st.error("No data loaded. Please check the dataset.")
-        return
 
     # Get current data from session state
     df = st.session_state.current_df
@@ -380,7 +451,7 @@ def render_data_analysis():
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-            
+
             # Add severity level labels
             severity_labels = {
                 0: "No Injury",
@@ -389,12 +460,12 @@ def render_data_analysis():
                 3: "Serious Injury",
                 4: "Fatal Injury"
             }
-            
+
             # Get current labels and replace with severity labels if they match
             current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
             new_labels = [severity_labels.get(label, label) for label in current_labels]
             ax.set_xticklabels(new_labels, rotation=45, ha='right')
-            
+
             ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
             ax.set_xlabel('Severity Level', color='white')
             ax.set_ylabel('Count', color='white')
@@ -410,7 +481,7 @@ def render_data_analysis():
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add points to the map - changed to red
+            # Add points to the map (red color)
             for idx, row in df.sample(min(1000, len(df))).iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
@@ -463,8 +534,9 @@ def render_data_analysis():
             st.pyplot(fig)
     
     with st.expander("Feature Importance Analysis"):
-        if st.session_state.models:
-            model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
+        model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
+
+        if model_name in st.session_state.models:
             model = st.session_state.models[model_name]
 
             try:
@@ -493,8 +565,6 @@ def render_data_analysis():
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Could not display feature importances: {str(e)}")
-        else:
-            st.warning("No trained models available.")
 
 def render_prediction():
     st.title("Accident Severity Prediction")
@@ -502,97 +572,92 @@ def render_prediction():
 
     if not st.session_state.models:
         st.warning("No models available for prediction. Please check the Data Analysis page.")
-        return
+    else:
+        with st.container():
+            st.subheader("Model Selection")
+            selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
+            model = st.session_state.models[selected_model]
 
-    with st.container():
-        st.subheader("Model Selection")
-        selected_model = st.selectbox("Select Prediction Model", list(st.session_state.models.keys()))
-        model = st.session_state.models[selected_model]
+        with st.container():
+            st.subheader("Input Parameters")
+            col1, col2 = st.columns(2)
 
-    with st.container():
-        st.subheader("Input Parameters")
-        col1, col2 = st.columns(2)
+            input_data = {}
+            for i, col in enumerate(st.session_state.X.columns):
+                # Alternate between columns
+                current_col = col1 if i % 2 == 0 else col2
 
-        input_data = {}
-        for i, col in enumerate(st.session_state.X.columns):
-            # Alternate between columns
-            current_col = col1 if i % 2 == 0 else col2
-
-            if col in st.session_state.label_encoders:
-                options = sorted(st.session_state.label_encoders[col].classes_)
-                choice = current_col.selectbox(f"{col}", options)
-                input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
-            else:
-                # Get min/max from the original dataframe (before scaling)
-                col_min = st.session_state.current_df[col].min()
-                col_max = st.session_state.current_df[col].max()
-                col_mean = st.session_state.current_df[col].mean()
-                input_data[col] = current_col.number_input(
-                    f"{col}", 
-                    float(col_min), 
-                    float(col_max), 
-                    float(col_mean),
-                    key=f"input_{col}"
-                )
-
-        if st.button("Predict Severity", key="predict_button"):
-            input_df = pd.DataFrame([input_data])
-            try:
-                prediction = model.predict(input_df)[0]
-                probs = model.predict_proba(input_df)[0]
-                confidence = np.max(probs) * 100
-
-                if st.session_state.target_col in st.session_state.label_encoders:
-                    severity_label = st.session_state.label_encoders[st.session_state.target_col].inverse_transform([prediction])[0]
+                if col in st.session_state.label_encoders:
+                    options = sorted(st.session_state.label_encoders[col].classes_)
+                    choice = current_col.selectbox(f"{col}", options)
+                    input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
                 else:
-                    severity_label = prediction
+                    # Get min/max from the original dataframe (before scaling)
+                    col_min = st.session_state.current_df[col].min()
+                    col_max = st.session_state.current_df[col].max()
+                    col_mean = st.session_state.current_df[col].mean()
+                    input_data[col] = current_col.number_input(
+                        f"{col}", 
+                        float(col_min), 
+                        float(col_max), 
+                        float(col_mean),
+                        key=f"input_{col}"
+                    )
 
-                # Display prediction results
-                with st.container():
-                    st.subheader("Prediction Results")
-                    res_col1, res_col2 = st.columns(2)
+            if st.button("Predict Severity", key="predict_button"):
+                input_df = pd.DataFrame([input_data])
+                try:
+                    prediction = model.predict(input_df)[0]
+                    probs = model.predict_proba(input_df)[0]
+                    confidence = np.max(probs) * 100
 
-                    with res_col1:
-                        st.markdown(f"""
-                        <div class="card">
-                            <div class="card-title">Predicted Severity</div>
-                            <h2 style="color: #4A8DF8;">{severity_label}</h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    with res_col2:
-                        st.markdown(f"""
-                        <div class="card">
-                            <div class="card-title">Confidence Level</div>
-                            <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    # Show probability distribution
                     if st.session_state.target_col in st.session_state.label_encoders:
-                        st.subheader("Probability Distribution")
-                        prob_df = pd.DataFrame({
-                            'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
-                            'Probability': probs * 100
-                        })
+                        severity_label = st.session_state.label_encoders[st.session_state.target_col].inverse_transform([prediction])[0]
+                    else:
+                        severity_label = prediction
 
-                        fig, ax = plt.subplots(figsize=(10, 4))
-                        sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
-                                    ax=ax, palette="coolwarm")
-                        ax.set_title('Severity Probability Distribution', color='white')
-                        ax.set_xlabel('Severity Level', color='white')
-                        ax.set_ylabel('Probability (%)', color='white')
-                        st.pyplot(fig)
-                
-            except Exception as e:
-                st.error(f"Prediction failed: {str(e)}")
+                    # Display prediction results
+                    with st.container():
+                        st.subheader("Prediction Results")
+                        res_col1, res_col2 = st.columns(2)
+
+                        with res_col1:
+                            st.markdown(f"""
+                            <div class="card">
+                                <div class="card-title">Predicted Severity</div>
+                                <h2 style="color: #4A8DF8;">{severity_label}</h2>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with res_col2:
+                            st.markdown(f"""
+                            <div class="card">
+                                <div class="card-title">Confidence Level</div>
+                                <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # Show probability distribution
+                        if st.session_state.target_col in st.session_state.label_encoders:
+                            st.subheader("Probability Distribution")
+                            prob_df = pd.DataFrame({
+                                'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
+                                'Probability': probs * 100
+                            })
+
+                            fig, ax = plt.subplots(figsize=(10, 4))
+                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
+                                        ax=ax, palette="coolwarm")
+                            ax.set_title('Severity Probability Distribution', color='white')
+                            ax.set_xlabel('Severity Level', color='white')
+                            ax.set_ylabel('Probability (%)', color='white')
+                            st.pyplot(fig)
+                    
+                except Exception as e:
+                    st.error(f"Prediction failed: {str(e)}")
 
 def render_reports():
     st.title("Dataset Reports")
-
-    if st.session_state.current_df is None:
-        st.error("No data loaded. Please check the dataset.")
-        return
 
     with st.expander("Dataset Summary Statistics", expanded=True):
         st.markdown("""
@@ -602,7 +667,7 @@ def render_reports():
         </div>
         """, unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -620,7 +685,7 @@ def render_reports():
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -736,41 +801,7 @@ def render_admin():
             st.info("File uploaded successfully. Click the button below to update the system.")
             if st.button("Update System with New Dataset", key="update_dataset"):
                 with st.spinner("Processing new dataset and retraining models..."):
-                    try:
-                        # Save uploaded file to a temporary file
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
-                            tmp_file.write(uploaded_file.getvalue())
-                            tmp_path = tmp_file.name
-                        
-                        # Read the CSV file
-                        new_df = pd.read_csv(tmp_path)
-                        
-                        # Clean up the temporary file
-                        os.unlink(tmp_path)
-                        
-                        # Preprocess the new dataset (mark as not default)
-                        new_df, new_label_encoders, new_target_col = preprocess_data(new_df, is_default=False)
-                        new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
-                        
-                        # Train models on new data
-                        new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
-                        
-                        # Update session state
-                        st.session_state.current_df = new_df
-                        st.session_state.label_encoders = new_label_encoders
-                        st.session_state.models = new_models
-                        st.session_state.scores_df = new_scores_df
-                        st.session_state.X = new_X
-                        st.session_state.y = new_y
-                        st.session_state.X_train = new_X_train
-                        st.session_state.X_test = new_X_test
-                        st.session_state.y_train = new_y_train
-                        st.session_state.y_test = new_y_test
-                        st.session_state.target_col = new_target_col
-                        
-                        st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
-                    except Exception as e:
-                        st.error(f"Error processing uploaded file: {str(e)}")
+                    handle_dataset_upload(uploaded_file)
 
     with st.expander("System Information"):
         st.subheader("System Information")
@@ -816,27 +847,24 @@ def render_admin():
         
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
-                try:
-                    df, label_encoders, target_col = load_default_data()
-                    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
-                    models, scores_df = train_models(X_train, y_train, X_test, y_test)
+                df, label_encoders, target_col, is_default = load_default_data()
+                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, is_default)
+                models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
-                    st.session_state.current_df = df
-                    st.session_state.label_encoders = label_encoders
-                    st.session_state.models = models
-                    st.session_state.scores_df = scores_df
-                    st.session_state.X = X
-                    st.session_state.y = y
-                    st.session_state.X_train = X_train
-                    st.session_state.X_test = X_test
-                    st.session_state.y_train = y_train
-                    st.session_state.y_test = y_test
-                    st.session_state.target_col = target_col
-                    st.session_state.is_default_data = True
+                st.session_state.current_df = df
+                st.session_state.label_encoders = label_encoders
+                st.session_state.models = models
+                st.session_state.scores_df = scores_df
+                st.session_state.X = X
+                st.session_state.y = y
+                st.session_state.X_train = X_train
+                st.session_state.X_test = X_test
+                st.session_state.y_train = y_train
+                st.session_state.y_test = y_test
+                st.session_state.target_col = target_col
+                st.session_state.is_default_data = is_default
 
-                    st.success("System reset to default dataset completed!")
-                except Exception as e:
-                    st.error(f"Reset failed: {str(e)}")
+                st.success("System reset to default dataset completed!")
 
 # --- Sidebar Navigation ---
 def create_sidebar():
@@ -861,9 +889,8 @@ def create_sidebar():
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### System Info")
-    st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df) if st.session_state.current_df is not None else 0} rows")
+    st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
-    st.sidebar.markdown(f"**Data Source:** {'Default' if st.session_state.is_default_data else 'Custom'}")
 
 # --- Main App ---
 def main():
