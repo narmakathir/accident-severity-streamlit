@@ -600,7 +600,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #808080;">{severity_label}</h2>
+                                <h2 style="color: #808080;">{severity_label}</h2>  <!-- Changed from blue to grey -->
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -608,7 +608,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #808080;">{confidence:.2f}%</h2>
+                                <h2 style="color: #808080;">{confidence:.2f}%</h2>  <!-- Changed from blue to grey -->
                             </div>
                             """, unsafe_allow_html=True)
                     
