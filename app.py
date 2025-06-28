@@ -75,12 +75,6 @@ st.markdown("""
         color: white;
     }
     
-    /* Active button style */
-    .stButton>button[kind="primary"] {
-        background-color: #3A4D8F !important;
-        font-weight: 500;
-    }
-    
     /* Widgets */
     .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
         background-color: #1E2130;
@@ -136,7 +130,7 @@ st.markdown("""
         font-size: 1.2em;
         font-weight: bold;
         margin-bottom: 10px;
-        color: #4A8DF8;
+        color: #808080;  /* Changed from blue to grey */
     }
     
     /* Navigation button styling */
@@ -155,11 +149,6 @@ st.markdown("""
     
     .nav-button:hover {
         background-color: #2A3459;
-    }
-    
-    .nav-button.active {
-        background-color: #3A4D8F;
-        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -188,10 +177,6 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
-if 'is_default_data' not in st.session_state:
-    st.session_state.is_default_data = True
-if 'smote_applied' not in st.session_state:
-    st.session_state.smote_applied = False
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -241,7 +226,6 @@ def load_default_data():
     return preprocess_data(df)
 
 def preprocess_data(df):
-    # Basic preprocessing
     # Basic preprocessing - match Jupyter notebook steps
     df = df.copy()
     
@@ -254,9 +238,6 @@ def preprocess_data(df):
 
     # Extract coordinates from Location column
     if 'Location' in df.columns:
-        location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(',', expand=True)
-        df['latitude'] = location[0].astype(float)
-        df['longitude'] = location[1].astype(float)
         try:
             location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
             df['latitude'] = location[0].astype(float)
@@ -264,7 +245,6 @@ def preprocess_data(df):
         except:
             pass
 
-    # Try to identify target column
     # Identify target column
     target_col = st.session_state.target_col
     if target_col not in df.columns:
@@ -273,17 +253,14 @@ def preprocess_data(df):
             target_col = possible_targets[0]
             st.session_state.target_col = target_col
 
-    # Encode categorical columns
     # Encode categorical columns - match Jupyter notebook
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
-        if col != 'Location':  # Skip location column
         if col != 'Location':  # Skip location column for encoding
             le = LabelEncoder()
             df[col] = le.fit_transform(df[col])
             label_encoders[col] = le
 
-    # Scale numeric features
     # Scale numeric features - match Jupyter notebook
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
     if len(numeric_cols) > 0:
@@ -292,33 +269,20 @@ def preprocess_data(df):
 
     return df, label_encoders, target_col
 
-def prepare_model_data(df, target_col, apply_smote=False):
-    X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
 def prepare_model_data(df, target_col):
     # Match Jupyter notebook feature/target split
     X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
-
-    # Train-test split
+    
     # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-
-    # Apply SMOTE only if requested and for default dataset
-    if apply_smote and st.session_state.is_default_data:
-        try:
-            smote = SMOTE(random_state=42)
-            X_train, y_train = smote.fit_resample(X_train, y_train)
-            st.session_state.smote_applied = True
-        except Exception as e:
-            st.warning(f"SMOTE failed: {str(e)}")
-            st.session_state.smote_applied = False
+    
     # Apply SMOTE only to training data (match Jupyter notebook)
     print("Before SMOTE:", Counter(y_train))
     smote = SMOTE(random_state=42)
     X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     print("After SMOTE:", Counter(y_train_resampled))
-
-    return X, y, X_train, X_test, y_train, y_test
+    
     return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
@@ -329,7 +293,6 @@ def train_models(X_train, y_train, X_test, y_test):
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
-        'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=500, random_state=42)
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
     
@@ -340,12 +303,7 @@ def train_models(X_train, y_train, X_test, y_test):
         try:
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-
-            # Calculate metrics
-            acc = accuracy_score(y_test, y_pred) * 100
-            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0) * 100
-            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0) * 100
-            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0) * 100
+            
             # Calculate metrics - match Jupyter notebook
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -353,7 +311,6 @@ def train_models(X_train, y_train, X_test, y_test):
             f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
 
             trained_models[name] = model
-            model_scores.append([name, acc, prec, rec, f1])
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
             
             # Print detailed metrics like Jupyter notebook
@@ -370,9 +327,7 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
-    st.session_state.is_default_data = True
     df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
     X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
     models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
@@ -402,7 +357,6 @@ def handle_dataset_upload(uploaded_file):
         os.unlink(tmp_path)
 
         # Preprocess the new dataset
-        st.session_state.is_default_data = False
         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
         new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
 
@@ -421,7 +375,6 @@ def handle_dataset_upload(uploaded_file):
         st.session_state.y_train = new_y_train
         st.session_state.y_test = new_y_test
         st.session_state.target_col = new_target_col
-        st.session_state.smote_applied = False
 
         st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
 
@@ -439,9 +392,9 @@ def render_home():
             'color': 'white',
             'border-color': '#2A3459'
         }))
-
+    
     st.markdown("---")
-
+    
     # Key metrics cards
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -450,9 +403,6 @@ def render_home():
         st.metric("Features Available", len(st.session_state.current_df.columns))
     with col3:
         st.metric("Trained Models", len(st.session_state.models))
-    
-    if st.session_state.smote_applied:
-        st.info("SMOTE has been applied to balance the default dataset.")
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
@@ -490,15 +440,12 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles
             # Create Folium map with dark tiles - match Jupyter notebook style
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add red points to the map
-            for idx, row in df.sample(min(1000, len(df))).iterrows():
             # Add red points to the map - match Jupyter notebook
             sample_df = df.sample(min(1000, len(df)), random_state=42)
             for idx, row in sample_df.iterrows():
@@ -508,7 +455,6 @@ def render_data_analysis():
                     color='red',
                     fill=True,
                     fill_color='red',
-                    fill_opacity=0.7
                     fill_opacity=0.9
                 ).add_to(m)
 
@@ -518,7 +464,6 @@ def render_data_analysis():
 
     with st.expander("Feature Correlation Heatmap"):
         try:
-            corr = df.select_dtypes(['number']).corr()
             # Match Jupyter notebook heatmap
             eda_cols = [
                 'Driver At Fault', 'Driver Distracted By', 'Vehicle Damage Extent',
@@ -549,8 +494,7 @@ def render_data_analysis():
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
-
-            # Performance comparison chart
+            
             # Performance comparison chart - match Jupyter notebook
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
@@ -562,7 +506,7 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
-
+    
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
@@ -570,14 +514,11 @@ def render_data_analysis():
             model = st.session_state.models[model_name]
 
             try:
-                if hasattr(model, 'feature_importances_'):
                 # Match Jupyter notebook feature importance calculations
                 if hasattr(model, 'feature_importances_'):  # Random Forest, XGBoost
                     importances = model.feature_importances_
-                elif hasattr(model, 'coef_'):
                 elif hasattr(model, 'coef_'):  # Logistic Regression
                     importances = np.abs(model.coef_[0])
-                elif hasattr(model, 'coefs_'):
                     importances = importances / np.sum(importances)  # Normalize like Jupyter notebook
                 elif hasattr(model, 'coefs_'):  # ANN
                     importances = np.mean(np.abs(model.coefs_[0]), axis=1)
@@ -585,14 +526,11 @@ def render_data_analysis():
                 else:
                     raise AttributeError("Model doesn't have feature importance attributes")
 
-                importances_vals = importances / importances.sum()
-                sorted_idx = np.argsort(importances_vals)[::-1]
                 sorted_idx = np.argsort(importances)[::-1]
-
+                
                 # Ensure we don't try to access more features than available
                 n_features = min(10, len(st.session_state.X.columns))
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
-                top_vals = importances_vals[sorted_idx][:n_features]
                 top_vals = importances[sorted_idx][:n_features]
 
                 fig, ax = plt.subplots(figsize=(10, 6))
@@ -646,8 +584,7 @@ def render_prediction():
                 input_df = pd.DataFrame([input_data])
                 try:
                     prediction = model.predict(input_df)[0]
-                    probs = model.predict_proba(input_df)[0]
-                    confidence = np.max(probs) * 100
+                    confidence = np.max(model.predict_proba(input_df)[0]) * 100
 
                     if st.session_state.target_col in st.session_state.label_encoders:
                         severity_label = st.session_state.label_encoders[st.session_state.target_col].inverse_transform([prediction])[0]
@@ -663,7 +600,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #4A8DF8;">{severity_label}</h2>
+                                <h2 style="color: #808080;">{severity_label}</h2>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -671,26 +608,10 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
+                                <h2 style="color: #808080;">{confidence:.2f}%</h2>
                             </div>
                             """, unsafe_allow_html=True)
-
-                        # Show probability distribution
-                        if st.session_state.target_col in st.session_state.label_encoders:
-                            st.subheader("Probability Distribution")
-                            prob_df = pd.DataFrame({
-                                'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
-                                'Probability': probs * 100
-                            })
-
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
-                                        ax=ax, palette="coolwarm")
-                            ax.set_title('Severity Probability Distribution', color='white')
-                            ax.set_xlabel('Severity Level', color='white')
-                            ax.set_ylabel('Probability (%)', color='white')
-                            st.pyplot(fig)
-
+                    
                 except Exception as e:
                     st.error(f"Prediction failed: {str(e)}")
 
@@ -728,21 +649,6 @@ def render_reports():
             'border-color': '#2A3459'
         }))
 
-    with st.expander("Missing Values Report"):
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Data Completeness</div>
-            <p>Analysis of missing values in the dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        missing_data = st.session_state.current_df.isnull().sum()
-        missing_data = missing_data[missing_data > 0]
-        if len(missing_data) > 0:
-            st.warning("Columns with missing values:")
-            st.dataframe(missing_data.reset_index().rename(columns={'index': 'Column', 0: 'Missing Values'}))
-        else:
-            st.success("No missing values found in the dataset.")
-
 def render_help():
     st.title("User Guide")
 
@@ -768,7 +674,7 @@ def render_help():
             </ul>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Data Analysis Section"):
         st.markdown("""
         <div class="card">
@@ -783,7 +689,7 @@ def render_help():
             </ul>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Prediction Section"):
         st.markdown("""
         <div class="card">
@@ -797,7 +703,7 @@ def render_help():
             </ol>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Technical Information"):
         st.markdown("""
         <div class="card">
@@ -832,7 +738,7 @@ def render_admin():
             <p>Upload a new CSV file to update the system dataset.</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
 
         if uploaded_file is not None:
@@ -840,41 +746,7 @@ def render_admin():
             if st.button("Update System with New Dataset", key="update_dataset"):
                 with st.spinner("Processing new dataset and retraining models..."):
                     handle_dataset_upload(uploaded_file)
-
-    with st.expander("System Information"):
-        st.subheader("System Information")
-        info_col1, info_col2 = st.columns(2)
-
-        with info_col1:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Current Target Variable</div>
-                <h3>{st.session_state.target_col}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Features</div>
-                <h3>{len(st.session_state.X.columns) if st.session_state.X is not None else 0}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with info_col2:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Models</div>
-                <h3>{len(st.session_state.models)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Dataset Rows</div>
-                <h3>{len(st.session_state.current_df)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
+    
     with st.expander("System Maintenance"):
         st.markdown("""
         <div class="card">
@@ -882,11 +754,10 @@ def render_admin():
             <p>Reset to the default dataset configuration.</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
-                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
                 X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
                 models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
@@ -901,45 +772,34 @@ def render_admin():
                 st.session_state.y_train = y_train
                 st.session_state.y_test = y_test
                 st.session_state.target_col = target_col
-                st.session_state.is_default_data = True
-                st.session_state.smote_applied = True
 
                 st.success("System reset to default dataset completed!")
 
 # --- Sidebar Navigation ---
 def create_sidebar():
     st.sidebar.title("Navigation")
-
+    
     # Admin mode toggle
     admin_mode = st.sidebar.checkbox("Admin Mode", key="admin_mode")
-
+    
     # Navigation buttons
     pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
     if admin_mode:
         pages.append("Admin")
-
+    
     for page in pages:
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
-
-    # Highlight the current page
-    for page in pages:
-        if page == st.session_state.current_page:
-            st.sidebar.button(page, key=f"active_{page}", type="primary")
-
+    
     st.sidebar.markdown("---")
     st.sidebar.markdown("### System Info")
     st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
-    if st.session_state.smote_applied:
-        st.sidebar.markdown("**SMOTE:** Applied")
-    else:
-        st.sidebar.markdown("**SMOTE:** Not applied")
 
 # --- Main App ---
 def main():
     create_sidebar()
-
+    
     # Page routing
     if st.session_state.current_page == "Home":
         render_home()
@@ -953,6 +813,6 @@ def main():
         render_help()
     elif st.session_state.current_page == "Admin":
         render_admin()
-More actions
+
 if __name__ == "__main__":
     main()
