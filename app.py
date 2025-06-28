@@ -353,27 +353,15 @@ def render_data_analysis():
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
 
-    with st.expander("Target Variable Distribution", expanded=True):
-        if st.session_state.target_col in df.columns:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-            
-            severity_labels = {
-                0: "No Injury",
-                1: "Minor Injury",
-                2: "Moderate Injury",
-                3: "Serious Injury",
-                4: "Fatal Injury"
-            }
-            
-            current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
-            new_labels = [severity_labels.get(label, label) for label in current_labels]
-            ax.set_xticklabels(new_labels, rotation=45, ha='right')
-            
-            ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
-            ax.set_xlabel('Severity Level', color='white')
-            ax.set_ylabel('Count', color='white')
-            st.pyplot(fig)
+with st.expander("Target Variable Distribution", expanded=True):
+    if st.session_state.target_col in df.columns:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
+        
+        ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
+        ax.set_xlabel('Severity Level (Numerical)', color='white')
+        ax.set_ylabel('Count', color='white')
+        st.pyplot(fig)
         else:
             st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
 
