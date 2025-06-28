@@ -137,7 +137,6 @@ st.markdown("""
         font-weight: bold;
         margin-bottom: 10px;
         color: #4A8DF8;
-        color: #808080;  /* Changed from blue to grey */
     }
     
     /* Navigation button styling */
@@ -240,10 +239,10 @@ def load_default_data():
 def preprocess_data(df):
     # Basic preprocessing - match Jupyter notebook steps
     df = df.copy()
-
+    
     # Drop duplicates
     df.drop_duplicates(inplace=True)
-
+    
     # Handle missing values - fill numeric with median, categorical with mode
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
@@ -285,16 +284,16 @@ def prepare_model_data(df, target_col):
     # Match Jupyter notebook feature/target split
     X = df.drop([target_col, 'Location'], axis=1)
     y = df[target_col]
-
+    
     # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-
+    
     # Apply SMOTE only to training data (match Jupyter notebook)
     print("Before SMOTE:", Counter(y_train))
     smote = SMOTE(random_state=42)
     X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
     print("After SMOTE:", Counter(y_train_resampled))
-
+    
     return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
@@ -307,7 +306,7 @@ def train_models(X_train, y_train, X_test, y_test):
         'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42)
     }
-
+    
     trained_models = {}
     model_scores = []
 
@@ -315,7 +314,7 @@ def train_models(X_train, y_train, X_test, y_test):
         try:
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-
+            
             # Calculate metrics - match Jupyter notebook
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -324,12 +323,12 @@ def train_models(X_train, y_train, X_test, y_test):
 
             trained_models[name] = model
             model_scores.append([name, acc*100, prec*100, rec*100, f1*100])
-
+            
             # Print detailed metrics like Jupyter notebook
             print(f"\n{name} Evaluation:")
             print(confusion_matrix(y_test, y_pred))
             print(classification_report(y_test, y_pred))
-
+            
         except Exception as e:
             st.warning(f"Failed to train {name}: {str(e)}")
             continue
@@ -404,9 +403,9 @@ def render_home():
             'color': 'white',
             'border-color': '#2A3459'
         }))
-
+    
     st.markdown("---")
-
+    
     # Key metrics cards
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -483,7 +482,7 @@ def render_data_analysis():
                 'Speed Limit', 'Driver Substance Abuse'
             ]
             eda_in_df = [col for col in eda_cols if col in df.columns]
-
+            
             corr = df[eda_in_df + [st.session_state.target_col]].corr()
             fig, ax = plt.subplots(figsize=(12, 10))
             sns.heatmap(corr, cmap='coolwarm', annot=False, ax=ax, center=0,
@@ -506,7 +505,7 @@ def render_data_analysis():
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
-
+            
             # Performance comparison chart - match Jupyter notebook
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
@@ -518,7 +517,7 @@ def render_data_analysis():
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend(facecolor='#0E1117', edgecolor='#0E1117')
             st.pyplot(fig)
-
+    
     with st.expander("Feature Importance Analysis"):
         model_name = st.selectbox("Select Model", list(st.session_state.models.keys()), index=1)
 
@@ -539,7 +538,7 @@ def render_data_analysis():
                     raise AttributeError("Model doesn't have feature importance attributes")
 
                 sorted_idx = np.argsort(importances)[::-1]
-
+                
                 # Ensure we don't try to access more features than available
                 n_features = min(10, len(st.session_state.X.columns))
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
@@ -598,7 +597,6 @@ def render_prediction():
                     prediction = model.predict(input_df)[0]
                     probs = model.predict_proba(input_df)[0]
                     confidence = np.max(probs) * 100
-                    confidence = np.max(model.predict_proba(input_df)[0]) * 100
 
                     if st.session_state.target_col in st.session_state.label_encoders:
                         severity_label = st.session_state.label_encoders[st.session_state.target_col].inverse_transform([prediction])[0]
@@ -615,7 +613,6 @@ def render_prediction():
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
                                 <h2 style="color: #4A8DF8;">{severity_label}</h2>
-                                <h2 style="color: #808080;">{severity_label}</h2>  <!-- Changed to grey -->
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -624,7 +621,6 @@ def render_prediction():
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
                                 <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
-                                <h2 style="color: #808080;">{confidence:.2f}%</h2>  <!-- Changed to grey -->
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -643,7 +639,7 @@ def render_prediction():
                             ax.set_xlabel('Severity Level', color='white')
                             ax.set_ylabel('Probability (%)', color='white')
                             st.pyplot(fig)
-
+                    
                 except Exception as e:
                     st.error(f"Prediction failed: {str(e)}")
 
@@ -721,7 +717,7 @@ def render_help():
             </ul>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Data Analysis Section"):
         st.markdown("""
         <div class="card">
@@ -736,7 +732,7 @@ def render_help():
             </ul>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Prediction Section"):
         st.markdown("""
         <div class="card">
@@ -750,7 +746,7 @@ def render_help():
             </ol>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with st.expander("Technical Information"):
         st.markdown("""
         <div class="card">
@@ -785,7 +781,7 @@ def render_admin():
             <p>Upload a new CSV file to update the system dataset.</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         uploaded_file = st.file_uploader("Select CSV file", type="csv", key="dataset_uploader")
 
         if uploaded_file is not None:
@@ -827,7 +823,7 @@ def render_admin():
                 <h3>{len(st.session_state.current_df)}</h3>
             </div>
             """, unsafe_allow_html=True)
-
+    
     with st.expander("System Maintenance"):
         st.markdown("""
         <div class="card">
@@ -835,7 +831,7 @@ def render_admin():
             <p>Reset to the default dataset configuration.</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
@@ -859,19 +855,19 @@ def render_admin():
 # --- Sidebar Navigation ---
 def create_sidebar():
     st.sidebar.title("Navigation")
-
+    
     # Admin mode toggle
     admin_mode = st.sidebar.checkbox("Admin Mode", key="admin_mode")
-
+    
     # Navigation buttons
     pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
     if admin_mode:
         pages.append("Admin")
-
+    
     for page in pages:
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
-
+    
     # Highlight the current page
     for page in pages:
         if page == st.session_state.current_page:
@@ -885,7 +881,7 @@ def create_sidebar():
 # --- Main App ---
 def main():
     create_sidebar()
-
+    
     # Page routing
     if st.session_state.current_page == "Home":
         render_home()
