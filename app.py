@@ -130,7 +130,7 @@ st.markdown("""
         font-size: 1.2em;
         font-weight: bold;
         margin-bottom: 10px;
-        color: #808080;  /* Changed from blue to grey */
+        color: #808080;
     }
     
     /* Navigation button styling */
@@ -278,12 +278,15 @@ def prepare_model_data(df, target_col):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
     # Apply SMOTE only to training data (match Jupyter notebook)
-    print("Before SMOTE:", Counter(y_train))
-    smote = SMOTE(random_state=42)
-    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-    print("After SMOTE:", Counter(y_train_resampled))
-    
-    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    try:
+        print("Before SMOTE:", Counter(y_train))
+        smote = SMOTE(random_state=42)
+        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+        print("After SMOTE:", Counter(y_train_resampled))
+        return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    except Exception as e:
+        print(f"SMOTE failed: {str(e)}")
+        return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -600,7 +603,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #808080;">{severity_label}</h2>  <!-- Changed from blue to grey -->
+                                <h2 style="color: #808080;">{severity_label}</h2>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -608,7 +611,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #808080;">{confidence:.2f}%</h2>  <!-- Changed from blue to grey -->
+                                <h2 style="color: #808080;">{confidence:.2f}%</h2>
                             </div>
                             """, unsafe_allow_html=True)
                     
