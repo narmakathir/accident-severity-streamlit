@@ -900,5 +900,5 @@ def main():
     elif st.session_state.current_page == "Admin":
         render_admin()
 
-if __name__ == "__main__":More actions
+if __name__ == "__main__":
     main()
