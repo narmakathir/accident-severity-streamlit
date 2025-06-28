@@ -1,5 +1,5 @@
 # --- Imports ---
-import streamlit as st
+import streamlit as stMore actions
 import pandas as pd
 import numpy as np
 import seaborn as sns
