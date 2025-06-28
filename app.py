@@ -188,6 +188,10 @@ if 'default_dataset' not in st.session_state:
     st.session_state.default_dataset = 'https://raw.githubusercontent.com/narmakathir/accident-severity-streamlit/main/filtered_crash_data.csv'
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
+if 'is_default_data' not in st.session_state:
+    st.session_state.is_default_data = True
+if 'smote_applied' not in st.session_state:
+    st.session_state.smote_applied = False
 
 # --- Navigation Functions ---
 def navigate_to(page):
@@ -237,18 +241,24 @@ def preprocess_data(df):
 
     return df, label_encoders, target_col
 
-def prepare_model_data(df, target_col):
+def prepare_model_data(df, target_col, apply_smote=False):
     X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col]
     
-    # Train-test split before SMOTE
+    # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
-    # Apply SMOTE only on training set
-    smote = SMOTE(random_state=42)
-    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    # Apply SMOTE only if requested and for default dataset
+    if apply_smote and st.session_state.is_default_data:
+        try:
+            smote = SMOTE(random_state=42)
+            X_train, y_train = smote.fit_resample(X_train, y_train)
+            st.session_state.smote_applied = True
+        except Exception as e:
+            st.warning(f"SMOTE failed: {str(e)}")
+            st.session_state.smote_applied = False
     
-    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
+    return X, y, X_train, X_test, y_train, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -284,8 +294,9 @@ def train_models(X_train, y_train, X_test, y_test):
 
 # --- Initialize with Default Data ---
 if st.session_state.current_df is None:
+    st.session_state.is_default_data = True
     df, label_encoders, target_col = load_default_data()
-    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
     models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
     st.session_state.current_df = df
@@ -314,6 +325,7 @@ def handle_dataset_upload(uploaded_file):
         os.unlink(tmp_path)
 
         # Preprocess the new dataset
+        st.session_state.is_default_data = False
         new_df, new_label_encoders, new_target_col = preprocess_data(new_df)
         new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
 
@@ -332,6 +344,7 @@ def handle_dataset_upload(uploaded_file):
         st.session_state.y_train = new_y_train
         st.session_state.y_test = new_y_test
         st.session_state.target_col = new_target_col
+        st.session_state.smote_applied = False
 
         st.success("Dataset updated successfully! All pages have been refreshed with the new data.")
 
@@ -360,6 +373,9 @@ def render_home():
         st.metric("Features Available", len(st.session_state.current_df.columns))
     with col3:
         st.metric("Trained Models", len(st.session_state.models))
+    
+    if st.session_state.smote_applied:
+        st.info("SMOTE has been applied to balance the default dataset.")
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
@@ -770,7 +786,7 @@ def render_admin():
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 df, label_encoders, target_col = load_default_data()
-                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
+                X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col, apply_smote=True)
                 models, scores_df = train_models(X_train, y_train, X_test, y_test)
 
                 st.session_state.current_df = df
@@ -784,6 +800,8 @@ def render_admin():
                 st.session_state.y_train = y_train
                 st.session_state.y_test = y_test
                 st.session_state.target_col = target_col
+                st.session_state.is_default_data = True
+                st.session_state.smote_applied = True
 
                 st.success("System reset to default dataset completed!")
 
@@ -812,6 +830,10 @@ def create_sidebar():
     st.sidebar.markdown("### System Info")
     st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df)} rows")
     st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
+    if st.session_state.smote_applied:
+        st.sidebar.markdown("**SMOTE:** Applied")
+    else:
+        st.sidebar.markdown("**SMOTE:** Not applied")
 
 # --- Main App ---
 def main():
