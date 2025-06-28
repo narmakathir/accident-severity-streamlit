@@ -130,7 +130,7 @@ st.markdown("""
         font-size: 1.2em;
         font-weight: bold;
         margin-bottom: 10px;
-        color: #808080;
+        color: #808080;  /* Changed from blue to grey */
     }
     
     /* Navigation button styling */
@@ -236,14 +236,15 @@ def preprocess_data(df):
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
 
-    # Extract coordinates from Location column
+    # Extract coordinates from Location column if it exists
     if 'Location' in df.columns:
         try:
             location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
             df['latitude'] = location[0].astype(float)
             df['longitude'] = location[1].astype(float)
-        except:
-            pass
+        except Exception as e:
+            st.warning(f"Could not parse Location column: {str(e)}")
+            # Proceed without location data
 
     # Identify target column
     target_col = st.session_state.target_col
@@ -271,22 +272,24 @@ def preprocess_data(df):
 
 def prepare_model_data(df, target_col):
     # Match Jupyter notebook feature/target split
-    X = df.drop([target_col, 'Location'], axis=1)
+    # Drop Location column if it exists
+    cols_to_drop = [target_col]
+    if 'Location' in df.columns:
+        cols_to_drop.append('Location')
+        
+    X = df.drop(cols_to_drop, axis=1, errors='ignore')
     y = df[target_col]
     
     # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     
     # Apply SMOTE only to training data (match Jupyter notebook)
-    try:
-        print("Before SMOTE:", Counter(y_train))
-        smote = SMOTE(random_state=42)
-        X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
-        print("After SMOTE:", Counter(y_train_resampled))
-        return X, y, X_train_resampled, X_test, y_train_resampled, y_test
-    except Exception as e:
-        print(f"SMOTE failed: {str(e)}")
-        return X, y, X_train, X_test, y_train, y_test
+    print("Before SMOTE:", Counter(y_train))
+    smote = SMOTE(random_state=42)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    print("After SMOTE:", Counter(y_train_resampled))
+    
+    return X, y, X_train_resampled, X_test, y_train_resampled, y_test
 
 # --- Train Models ---
 @st.cache_resource
@@ -420,23 +423,31 @@ def render_data_analysis():
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
 
-            # Add severity level labels
-            severity_labels = {
-                0: "No Injury",
-                1: "Minor Injury",
-                2: "Moderate Injury",
-                3: "Serious Injury",
-                4: "Fatal Injury"
-            }
-
-            # Get current labels and replace with severity labels if they match
-            current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
-            new_labels = [severity_labels.get(label, label) for label in current_labels]
-            ax.set_xticklabels(new_labels, rotation=45, ha='right')
-
+            # Customize the x-axis labels
             ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
             ax.set_xlabel('Severity Level', color='white')
             ax.set_ylabel('Count', color='white')
+            
+            # Get current tick labels
+            current_labels = [tick.get_text() for tick in ax.get_xticklabels()]
+            
+            # Try to convert to integers for severity level mapping
+            try:
+                severity_levels = {
+                    '0': 'No Injury',
+                    '1': 'Minor Injury',
+                    '2': 'Moderate Injury',
+                    '3': 'Serious Injury',
+                    '4': 'Fatal Injury'
+                }
+                
+                # Map numeric labels to descriptive labels
+                new_labels = [severity_levels.get(label, label) for label in current_labels]
+                ax.set_xticklabels(new_labels, rotation=45, ha='right')
+            except:
+                # If conversion fails, just use the original labels
+                ax.set_xticklabels(current_labels, rotation=45, ha='right')
+                
             st.pyplot(fig)
         else:
             st.warning(f"Target column '{st.session_state.target_col}' not found in dataset.")
@@ -603,7 +614,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Predicted Severity</div>
-                                <h2 style="color: #808080;">{severity_label}</h2>
+                                <h2 style="color: #808080;">{severity_label}</h2>  <!-- Changed from blue to grey -->
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -611,7 +622,7 @@ def render_prediction():
                             st.markdown(f"""
                             <div class="card">
                                 <div class="card-title">Confidence Level</div>
-                                <h2 style="color: #808080;">{confidence:.2f}%</h2>
+                                <h2 style="color: #808080;">{confidence:.2f}%</h2>  <!-- Changed from blue to grey -->
                             </div>
                             """, unsafe_allow_html=True)
                     
