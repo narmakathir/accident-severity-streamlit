@@ -138,29 +138,6 @@ st.markdown("""
         margin-bottom: 10px;
         color: #4A8DF8;
     }
-    
-    /* Navigation button styling */
-    .nav-button {
-        background-color: #1E2130;
-        color: white;
-        border: 1px solid #2A3459;
-        border-radius: 4px;
-        padding: 10px 15px;
-        margin: 5px 0;
-        width: 100%;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    
-    .nav-button:hover {
-        background-color: #2A3459;
-    }
-    
-    .nav-button.active {
-        background-color: #3A4D8F;
-        font-weight: bold;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -203,13 +180,13 @@ def load_default_data():
     return preprocess_data(df, is_default=True)
 
 def preprocess_data(df, is_default=False):
-    # Basic preprocessing - match Jupyter notebook exactly
+    # Basic preprocessing
     df = df.copy()
     
     # Drop duplicates
     df.drop_duplicates(inplace=True)
     
-    # Handle missing values: fill numeric with median, categorical with mode
+    # Handle missing values
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
     
@@ -235,7 +212,7 @@ def preprocess_data(df, is_default=False):
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':
             le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))  # Ensure string type before encoding
+            df[col] = le.fit_transform(df[col].astype(str))
             label_encoders[col] = le
     
     # Scale numeric features (excluding target)
@@ -277,7 +254,6 @@ def prepare_model_data(df, target_col):
 # --- Train Models ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
-    # Use same models and parameters as Jupyter notebook
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
@@ -303,7 +279,7 @@ def train_models(X_train, y_train, X_test, y_test):
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Calculate metrics (weighted averages)
+            # Calculate metrics
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -357,7 +333,6 @@ def render_home():
         
         st.markdown("---")
         
-        # Key metrics cards
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Records", len(st.session_state.current_df))
@@ -370,13 +345,11 @@ def render_home():
 
 def render_data_analysis():
     st.title("Data Analysis & Insights")
-    st.markdown("Explore key patterns and model performance.")
 
     if st.session_state.current_df is None:
         st.error("No data loaded. Please check the dataset.")
         return
 
-    # Get current data from session state
     df = st.session_state.current_df
     scores_df = st.session_state.scores_df
 
@@ -385,7 +358,6 @@ def render_data_analysis():
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
             
-            # Add severity level labels
             severity_labels = {
                 0: "No Injury",
                 1: "Minor Injury",
@@ -394,7 +366,6 @@ def render_data_analysis():
                 4: "Fatal Injury"
             }
             
-            # Get current labels and replace with severity labels if they match
             current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
             new_labels = [severity_labels.get(label, label) for label in current_labels]
             ax.set_xticklabels(new_labels, rotation=45, ha='right')
@@ -408,13 +379,11 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            # Create Folium map with dark tiles
             m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
                           zoom_start=11, 
                           tiles='CartoDB dark_matter',
                           attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
 
-            # Add points to the map - changed to red
             for idx, row in df.sample(min(1000, len(df))).iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
@@ -442,19 +411,16 @@ def render_data_analysis():
 
     if not st.session_state.scores_df.empty:
         with st.expander("Model Performance Metrics"):
-            # Format the scores to show 2 decimal places
             formatted_scores = st.session_state.scores_df.copy()
             for col in formatted_scores.columns[1:]:
                 formatted_scores[col] = formatted_scores[col].apply(lambda x: f"{x:.2f}")
 
-            # Display as a styled table
             st.table(formatted_scores.style.set_properties(**{
                 'background-color': '#1E2130',
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
             
-            # Performance comparison chart
             st.subheader("Model Performance Comparison")
             performance_df = st.session_state.scores_df.set_index('Model')
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -484,7 +450,6 @@ def render_data_analysis():
                 importances_vals = importances / importances.sum()
                 sorted_idx = np.argsort(importances_vals)[::-1]
                 
-                # Ensure we don't try to access more features than available
                 n_features = min(10, len(st.session_state.X.columns))
                 top_features = st.session_state.X.columns[sorted_idx][:n_features]
                 top_vals = importances_vals[sorted_idx][:n_features]
@@ -502,7 +467,6 @@ def render_data_analysis():
 
 def render_prediction():
     st.title("Accident Severity Prediction")
-    st.markdown("Make custom predictions by selecting input values below.")
 
     if not st.session_state.models:
         st.warning("No models available for prediction. Please check the Data Analysis page.")
@@ -519,7 +483,6 @@ def render_prediction():
 
         input_data = {}
         for i, col in enumerate(st.session_state.X.columns):
-            # Alternate between columns
             current_col = col1 if i % 2 == 0 else col2
 
             if col in st.session_state.label_encoders:
@@ -527,7 +490,6 @@ def render_prediction():
                 choice = current_col.selectbox(f"{col}", options)
                 input_data[col] = st.session_state.label_encoders[col].transform([choice])[0]
             else:
-                # Get min/max from the original dataframe (before scaling)
                 col_min = st.session_state.current_df[col].min()
                 col_max = st.session_state.current_df[col].max()
                 col_mean = st.session_state.current_df[col].mean()
@@ -551,7 +513,6 @@ def render_prediction():
                 else:
                     severity_label = prediction
 
-                # Display prediction results
                 with st.container():
                     st.subheader("Prediction Results")
                     res_col1, res_col2 = st.columns(2)
@@ -572,7 +533,6 @@ def render_prediction():
                         </div>
                         """, unsafe_allow_html=True)
 
-                    # Show probability distribution
                     if st.session_state.target_col in st.session_state.label_encoders:
                         st.subheader("Probability Distribution")
                         prob_df = pd.DataFrame({
@@ -606,7 +566,7 @@ def render_reports():
         </div>
         """, unsafe_allow_html=True)
         st.dataframe(st.session_state.current_df.describe().style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
@@ -624,25 +584,10 @@ def render_reports():
             'Unique Values': [st.session_state.current_df[col].nunique() for col in st.session_state.current_df.columns]
         })
         st.dataframe(col_info.style.set_properties(**{
-            'background-color': '#1E1117',
+            'background-color': '#1E2130',
             'color': 'white',
             'border-color': '#2A3459'
         }))
-
-    with st.expander("Missing Values Report"):
-        st.markdown("""
-        <div class="card">
-            <div class="card-title">Data Completeness</div>
-            <p>Analysis of missing values in the dataset.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        missing_data = st.session_state.current_df.isnull().sum()
-        missing_data = missing_data[missing_data > 0]
-        if len(missing_data) > 0:
-            st.warning("Columns with missing values:")
-            st.dataframe(missing_data.reset_index().rename(columns={'index': 'Column', 0: 'Missing Values'}))
-        else:
-            st.success("No missing values found in the dataset.")
 
 def render_help():
     st.title("User Guide")
@@ -717,12 +662,11 @@ def render_help():
 def render_admin():
     st.title("Administration Dashboard")
 
-    # Simple password protection
     password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
 
     if password != "admin1":
         st.error("Incorrect password. Access denied.")
-        st.stop()  # This stops execution if password is wrong
+        st.stop()
 
     st.warning("You are in administrator mode. Changes here will affect all users.")
 
@@ -741,25 +685,17 @@ def render_admin():
             if st.button("Update System with New Dataset", key="update_dataset"):
                 with st.spinner("Processing new dataset and retraining models..."):
                     try:
-                        # Save uploaded file to a temporary file
                         with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
                             tmp_file.write(uploaded_file.getvalue())
                             tmp_path = tmp_file.name
                         
-                        # Read the CSV file
                         new_df = pd.read_csv(tmp_path)
-                        
-                        # Clean up the temporary file
                         os.unlink(tmp_path)
                         
-                        # Preprocess the new dataset (mark as not default)
                         new_df, new_label_encoders, new_target_col = preprocess_data(new_df, is_default=False)
                         new_X, new_y, new_X_train, new_X_test, new_y_train, new_y_test = prepare_model_data(new_df, new_target_col)
-                        
-                        # Train models on new data
                         new_models, new_scores_df = train_models(new_X_train, new_y_train, new_X_test, new_y_test)
                         
-                        # Update session state
                         st.session_state.current_df = new_df
                         st.session_state.label_encoders = new_label_encoders
                         st.session_state.models = new_models
@@ -846,10 +782,8 @@ def render_admin():
 def create_sidebar():
     st.sidebar.title("Navigation")
     
-    # Admin mode toggle
     admin_mode = st.sidebar.checkbox("Admin Mode", key="admin_mode")
     
-    # Navigation buttons
     pages = ["Home", "Data Analysis", "Prediction", "Reports", "Help"]
     if admin_mode:
         pages.append("Admin")
@@ -857,11 +791,6 @@ def create_sidebar():
     for page in pages:
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
-    
-    # Highlight the current page
-    for page in pages:
-        if page == st.session_state.current_page:
-            st.sidebar.button(page, key=f"active_{page}", type="primary")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### System Info")
@@ -873,7 +802,6 @@ def create_sidebar():
 def main():
     create_sidebar()
     
-    # Page routing
     if st.session_state.current_page == "Home":
         render_home()
     elif st.session_state.current_page == "Data Analysis":
