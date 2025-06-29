@@ -19,14 +19,11 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
-# Handle SMOTE import with fallback
+# Silent SMOTE import with fallback
 try:
     from imblearn.over_sampling import SMOTE
-    smote_available = True
-except ImportError as e:
-    st.warning(f"SMOTE import failed: {str(e)}. Using RandomOverSampler instead.")
+except ImportError:
     from imblearn.over_sampling import RandomOverSampler as SMOTE
-    smote_available = False
 
 # --- Custom Dark Theme Configuration ---
 def set_dark_theme():
@@ -162,8 +159,8 @@ def prepare_model_data(df, target_col):
             smote = SMOTE(random_state=42)
             X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
             return X, y, X_train_resampled, X_test, y_train_resampled, y_test
-        except Exception as e:
-            st.warning(f"SMOTE failed: {str(e)}. Using original data.")
+        except Exception:
+            return X, y, X_train, X_test, y_train, y_test
     
     return X, y, X_train, X_test, y_train, y_test
 
@@ -260,15 +257,6 @@ def render_data_analysis():
         if st.session_state.target_col in df.columns:
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
-            
-            severity_labels = {
-                0: "No Injury", 1: "Minor Injury", 2: "Moderate Injury",
-                3: "Serious Injury", 4: "Fatal Injury"
-            }
-            
-            current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
-            new_labels = [severity_labels.get(label, label) for label in current_labels]
-            ax.set_xticklabels(new_labels, rotation=45, ha='right')
             
             ax.set_title(f'Count of {st.session_state.target_col} Levels', color='white')
             ax.set_xlabel('Severity Level', color='white')
@@ -425,20 +413,6 @@ def render_prediction():
                         <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
                     </div>
                     """, unsafe_allow_html=True)
-
-                    if st.session_state.target_col in st.session_state.label_encoders:
-                        st.subheader("Probability Distribution")
-                        prob_df = pd.DataFrame({
-                            'Severity Level': st.session_state.label_encoders[st.session_state.target_col].classes_,
-                            'Probability': probs * 100
-                        })
-
-                        fig, ax = plt.subplots(figsize=(10, 4))
-                        sns.barplot(x='Severity Level', y='Probability', data=prob_df, ax=ax, palette="coolwarm")
-                        ax.set_title('Severity Probability Distribution', color='white')
-                        ax.set_xlabel('Severity Level', color='white')
-                        ax.set_ylabel('Probability (%)', color='white')
-                        st.pyplot(fig)
                 
             except Exception as e:
                 st.error(f"Prediction failed: {str(e)}")
@@ -681,12 +655,6 @@ def create_sidebar():
     for page in pages:
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### System Info")
-    st.sidebar.markdown(f"**Dataset:** {len(st.session_state.current_df) if st.session_state.current_df is not None else 0} rows")
-    st.sidebar.markdown(f"**Target:** {st.session_state.target_col}")
-    st.sidebar.markdown(f"**Data Source:** {'Default' if st.session_state.is_default_data else 'Custom'}")
 
 # --- Main App ---
 def main():
