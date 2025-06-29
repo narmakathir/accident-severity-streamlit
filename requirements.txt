@@ -1,8 +1,8 @@
 streamlit>=1.22.0
 pandas>=1.5.0
 numpy>=1.23.0
-scikit-learn==1.2.2  # Pinned to a specific stable version
-imbalanced-learn==0.10.1  # Pinned to match scikit-learn 1.2.x
+scikit-learn==1.2.2  # Required for SMOTE compatibility
+imbalanced-learn==0.10.1  # Must match scikit-learn 1.2.x
 xgboost>=1.7.0
 seaborn>=0.12.0
 matplotlib>=3.6.0
