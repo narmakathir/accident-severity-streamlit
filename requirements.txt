@@ -1,3 +1,5 @@
+# Streamlit App: requirements.txt
+
 streamlit>=1.46.1
 pandas>=2.2.0
 numpy>=2.0.0
