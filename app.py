@@ -19,13 +19,13 @@ import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
-# Silent SMOTE import with fallback
+# Handle SMOTE import with fallback
 try:
     from imblearn.over_sampling import SMOTE
 except ImportError:
     from imblearn.over_sampling import RandomOverSampler as SMOTE
 
-# --- Custom Dark Theme Configuration ---
+# Set dark theme for visualizations
 def set_dark_theme():
     sns.set_style("darkgrid")
     PALETTE = sns.color_palette("coolwarm")
@@ -43,7 +43,7 @@ def set_dark_theme():
 
 PALETTE = set_dark_theme()
 
-# --- Streamlit Config ---
+# Configure Streamlit page
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
 # Custom CSS for dark theme
@@ -72,7 +72,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Project Overview ---
+# Project description
 PROJECT_OVERVIEW = """
 <div class="card">
     <div class="card-title">Project Overview</div>
@@ -81,7 +81,7 @@ PROJECT_OVERVIEW = """
 </div>
 """
 
-# --- Session State Initialization ---
+# Initialize session state
 if 'current_df' not in st.session_state:
     st.session_state.current_df = None
 if 'label_encoders' not in st.session_state:
@@ -99,17 +99,18 @@ if 'current_page' not in st.session_state:
 if 'is_default_data' not in st.session_state:
     st.session_state.is_default_data = True
 
-# --- Navigation Functions ---
+# Navigation function
 def navigate_to(page):
     st.session_state.current_page = page
 
-# --- Data Loading and Processing ---
+# Load and cache default data
 @st.cache_data(persist="disk")
 def load_default_data():
     url = st.session_state.default_dataset
     df = pd.read_csv(url)
     return preprocess_data(df, is_default=True)
 
+# Preprocess data function
 def preprocess_data(df, is_default=False):
     df = df.copy()
     df.drop_duplicates(inplace=True)
@@ -146,6 +147,7 @@ def preprocess_data(df, is_default=False):
     st.session_state.is_default_data = is_default
     return df, label_encoders, target_col
 
+# Prepare data for modeling
 def prepare_model_data(df, target_col):
     X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
     y = df[target_col].astype(int)
@@ -164,7 +166,7 @@ def prepare_model_data(df, target_col):
     
     return X, y, X_train, X_test, y_train, y_test
 
-# --- Model Training ---
+# Train and cache models
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
     models = {
@@ -202,7 +204,7 @@ def train_models(X_train, y_train, X_test, y_test):
     )
     return trained_models, scores_df
 
-# --- Initialize with Default Data ---
+# Load default data if none exists
 if st.session_state.current_df is None:
     try:
         df, label_encoders, target_col = load_default_data()
@@ -222,7 +224,7 @@ if st.session_state.current_df is None:
     except Exception as e:
         st.error(f"Initialization failed: {str(e)}")
 
-# --- Page Rendering Functions ---
+# Home page
 def render_home():
     st.title("Traffic Accident Severity Prediction")
     st.markdown(PROJECT_OVERVIEW, unsafe_allow_html=True)
@@ -243,6 +245,7 @@ def render_home():
     else:
         st.error("No data loaded. Please check the dataset.")
 
+# Data analysis page
 def render_data_analysis():
     st.title("Data Analysis & Insights")
 
@@ -351,6 +354,7 @@ def render_data_analysis():
         else:
             st.warning("No trained models available.")
 
+# Prediction page
 def render_prediction():
     st.title("Accident Severity Prediction")
     st.markdown("Make custom predictions by selecting input values below.")
@@ -417,6 +421,7 @@ def render_prediction():
             except Exception as e:
                 st.error(f"Prediction failed: {str(e)}")
 
+# Reports page
 def render_reports():
     st.title("Dataset Reports")
 
@@ -455,6 +460,7 @@ def render_reports():
             'border-color': '#2A3459'
         }))
 
+# Help page
 def render_help():
     st.title("User Guide")
 
@@ -525,6 +531,7 @@ def render_help():
         </div>
         """, unsafe_allow_html=True)
 
+# Admin page
 def render_admin():
     st.title("Administration Dashboard")
     password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
@@ -642,7 +649,7 @@ def render_admin():
                 except Exception as e:
                     st.error(f"Reset failed: {str(e)}")
 
-# --- Sidebar Navigation ---
+# Create sidebar navigation
 def create_sidebar():
     st.sidebar.title("Navigation")
     
@@ -656,7 +663,7 @@ def create_sidebar():
         if st.sidebar.button(page, key=f"nav_{page}"):
             navigate_to(page)
 
-# --- Main App ---
+# Main app function
 def main():
     create_sidebar()
     
