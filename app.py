@@ -1,4 +1,16 @@
-# --- Imports ---
+# requirements.txt
+streamlit==1.22.0
+pandas==1.5.0
+numpy==1.23.0
+scikit-learn==1.2.2
+imbalanced-learn==0.10.1
+xgboost==1.7.0
+seaborn==0.12.0
+matplotlib==3.6.0
+folium==0.14.0
+streamlit-folium==0.11.0
+
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,21 +27,25 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from imblearn.over_sampling import SMOTE
 from collections import Counter
 import xgboost as xgb
 import warnings
 warnings.filterwarnings('ignore')
 
+# Handle SMOTE import with fallback
+try:
+    from imblearn.over_sampling import SMOTE
+    smote_available = True
+except ImportError as e:
+    st.warning(f"SMOTE import failed: {str(e)}. Using RandomOverSampler instead.")
+    from imblearn.over_sampling import RandomOverSampler as SMOTE
+    smote_available = False
+
 # --- Custom Dark Theme Configuration ---
 def set_dark_theme():
-    # Set seaborn style
     sns.set_style("darkgrid")
-
-    # Using coolwarm color palette
     PALETTE = sns.color_palette("coolwarm")
-
-    # Set matplotlib rcParams
+    
     plt.rcParams['figure.facecolor'] = '#0E1117'
     plt.rcParams['axes.facecolor'] = '#0E1117'
     plt.rcParams['axes.edgecolor'] = 'white'
@@ -46,97 +62,28 @@ PALETTE = set_dark_theme()
 # --- Streamlit Config ---
 st.set_page_config(page_title="Accident Severity Predictor", layout="wide")
 
-# Custom CSS for dark theme with enhanced styling
+# Custom CSS for dark theme
 st.markdown("""
 <style>
-    /* Main page background */
-    .stApp {
-        background-color: #0E1117;
-        color: white;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #0F131D !important;
-        border-right: 1px solid #2A3459;
-    }
-    
-    /* Navigation buttons */
-    .stButton>button {
-        background-color: #1E2130;
-        color: white;
-        border-color: #2A3459;
-        width: 100%;
-        margin: 5px 0;
-    }
-    
-    .stButton>button:hover {
-        background-color: #2A3459;
-        color: white;
-    }
-    
-    /* Active button style */
-    .stButton>button[kind="primary"] {
-        background-color: #3A4D8F !important;
-        font-weight: 500;
-    }
-    
-    /* Widgets */
+    .stApp { background-color: #0E1117; color: white; }
+    .css-1d391kg { background-color: #0F131D !important; border-right: 1px solid #2A3459; }
+    .stButton>button { background-color: #1E2130; color: white; border-color: #2A3459; width: 100%; margin: 5px 0; }
+    .stButton>button:hover { background-color: #2A3459; color: white; }
+    .stButton>button[kind="primary"] { background-color: #3A4D8F !important; font-weight: 500; }
     .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {
-        background-color: #1E2130;
-        color: white;
-        border-color: #2A3459;
+        background-color: #1E2130; color: white; border-color: #2A3459;
     }
-    
-    /* Text input */
-    .stTextInput input {
-        color: white !important;
-    }
-    
-    /* Select boxes */
-    .stSelectbox select {
-        color: white !important;
-    }
-    
-    /* Number input */
-    .stNumberInput input {
-        color: white !important;
-    }
-    
-    /* Dataframes */
-    .stDataFrame {
-        background-color: #1E2130;
-    }
-    
-    /* Tables */
-    table {
-        color: white !important;
-    }
-    
-    /* Markdown text color */
-    .stMarkdown {
-        color: white;
-    }
-    
-    /* Divider color */
-    hr {
-        border-color: #2A3459;
-    }
-    
-    /* Card styling */
+    .stTextInput input, .stSelectbox select, .stNumberInput input { color: white !important; }
+    .stDataFrame { background-color: #1E2130; }
+    table { color: white !important; }
+    .stMarkdown { color: white; }
+    hr { border-color: #2A3459; }
     .card {
-        background-color: #1E2130;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
-        border: 1px solid #2A3459;
+        background-color: #1E2130; border-radius: 8px; padding: 15px; 
+        margin-bottom: 15px; border: 1px solid #2A3459;
     }
-    
     .card-title {
-        font-size: 1.2em;
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #4A8DF8;
+        font-size: 1.2em; font-weight: bold; margin-bottom: 10px; color: #4A8DF8;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -150,7 +97,7 @@ PROJECT_OVERVIEW = """
 </div>
 """
 
-# --- Session State for Dynamic Updates ---
+# --- Session State Initialization ---
 if 'current_df' not in st.session_state:
     st.session_state.current_df = None
 if 'label_encoders' not in st.session_state:
@@ -172,7 +119,7 @@ if 'is_default_data' not in st.session_state:
 def navigate_to(page):
     st.session_state.current_page = page
 
-# --- Load Dataset ---
+# --- Data Loading and Processing ---
 @st.cache_data(persist="disk")
 def load_default_data():
     url = st.session_state.default_dataset
@@ -180,17 +127,11 @@ def load_default_data():
     return preprocess_data(df, is_default=True)
 
 def preprocess_data(df, is_default=False):
-    # Basic preprocessing
     df = df.copy()
-    
-    # Drop duplicates
     df.drop_duplicates(inplace=True)
-    
-    # Handle missing values
     df.fillna(df.median(numeric_only=True), inplace=True)
     df.fillna(df.mode().iloc[0], inplace=True)
     
-    # Feature engineering - location extraction
     if 'Location' in df.columns:
         try:
             location = df['Location'].str.replace(r'[()]', '', regex=True).str.split(', ', expand=True)
@@ -199,7 +140,6 @@ def preprocess_data(df, is_default=False):
         except:
             pass
     
-    # Try to identify target column
     target_col = st.session_state.target_col
     if target_col not in df.columns:
         possible_targets = [col for col in df.columns if 'severity' in col.lower() or 'injury' in col.lower()]
@@ -207,7 +147,6 @@ def preprocess_data(df, is_default=False):
             target_col = possible_targets[0]
             st.session_state.target_col = target_col
     
-    # Encode categorical columns (excluding Location)
     label_encoders = {}
     for col in df.select_dtypes(include='object').columns:
         if col != 'Location':
@@ -215,31 +154,22 @@ def preprocess_data(df, is_default=False):
             df[col] = le.fit_transform(df[col].astype(str))
             label_encoders[col] = le
     
-    # Scale numeric features (excluding target)
     numeric_cols = df.select_dtypes(include='number').columns.difference([target_col])
     if len(numeric_cols) > 0:
         scaler = StandardScaler()
         df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     
-    # Store whether this is default data
     st.session_state.is_default_data = is_default
-    
     return df, label_encoders, target_col
 
 def prepare_model_data(df, target_col):
-    # Drop location columns and target
     X = df.drop([target_col, 'Location'], axis=1, errors='ignore')
-    y = df[target_col]
+    y = df[target_col].astype(int)
     
-    # Ensure y is numeric
-    y = y.astype(int)
-    
-    # Train-test split with stratification
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )
     
-    # Apply SMOTE only to training data and only for default dataset
     if st.session_state.is_default_data:
         try:
             smote = SMOTE(random_state=42)
@@ -248,26 +178,17 @@ def prepare_model_data(df, target_col):
         except Exception as e:
             st.warning(f"SMOTE failed: {str(e)}. Using original data.")
     
-    # For non-default data or if SMOTE fails
     return X, y, X_train, X_test, y_train, y_test
 
-# --- Train Models ---
+# --- Model Training ---
 @st.cache_resource
 def train_models(X_train, y_train, X_test, y_test):
     models = {
         'Logistic Regression': LogisticRegression(max_iter=1000),
         'Random Forest': RandomForestClassifier(random_state=42),
-        'XGBoost': xgb.XGBClassifier(
-            random_state=42, 
-            use_label_encoder=False, 
-            eval_metric='mlogloss'
-        ),
+        'XGBoost': xgb.XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss'),
         'Artificial Neural Network': MLPClassifier(
-            hidden_layer_sizes=(100,), 
-            max_iter=300, 
-            activation='relu', 
-            solver='adam', 
-            random_state=42
+            hidden_layer_sizes=(100,), max_iter=300, activation='relu', solver='adam', random_state=42
         )
     }
     
@@ -279,7 +200,6 @@ def train_models(X_train, y_train, X_test, y_test):
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             
-            # Calculate metrics (weighted averages)
             acc = accuracy_score(y_test, y_pred)
             prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
             rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -325,21 +245,17 @@ def render_home():
 
     if st.session_state.current_df is not None:
         with st.expander("Dataset Preview", expanded=True):
-            st.dataframe(st.session_state.current_df.copy().head().style.set_properties(**{
+            st.dataframe(st.session_state.current_df.head().style.set_properties(**{
                 'background-color': '#1E2130',
                 'color': 'white',
                 'border-color': '#2A3459'
             }))
         
         st.markdown("---")
-        
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Records", len(st.session_state.current_df))
-        with col2:
-            st.metric("Features Available", len(st.session_state.current_df.columns))
-        with col3:
-            st.metric("Trained Models", len(st.session_state.models))
+        col1.metric("Total Records", len(st.session_state.current_df))
+        col2.metric("Features Available", len(st.session_state.current_df.columns))
+        col3.metric("Trained Models", len(st.session_state.models))
     else:
         st.error("No data loaded. Please check the dataset.")
 
@@ -359,11 +275,8 @@ def render_data_analysis():
             sns.countplot(x=st.session_state.target_col, data=df, ax=ax, palette="coolwarm")
             
             severity_labels = {
-                0: "No Injury",
-                1: "Minor Injury",
-                2: "Moderate Injury",
-                3: "Serious Injury",
-                4: "Fatal Injury"
+                0: "No Injury", 1: "Minor Injury", 2: "Moderate Injury",
+                3: "Serious Injury", 4: "Fatal Injury"
             }
             
             current_labels = [int(tick.get_text()) for tick in ax.get_xticklabels()]
@@ -379,19 +292,17 @@ def render_data_analysis():
 
     with st.expander("Accident Hotspot Locations"):
         if 'latitude' in df.columns and 'longitude' in df.columns:
-            m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], 
-                          zoom_start=11, 
-                          tiles='CartoDB dark_matter',
-                          attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
+            m = folium.Map(
+                location=[df['latitude'].mean(), df['longitude'].mean()], 
+                zoom_start=11, 
+                tiles='CartoDB dark_matter',
+                attr='© OpenStreetMap contributors © CARTO'
+            )
 
             for idx, row in df.sample(min(1000, len(df))).iterrows():
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
-                    radius=3,
-                    color='red',
-                    fill=True,
-                    fill_color='red',
-                    fill_opacity=0.9
+                    radius=3, color='red', fill=True, fill_color='red', fill_opacity=0.9
                 ).add_to(m)
 
             folium_static(m, width=1000, height=600)
@@ -495,11 +406,7 @@ def render_prediction():
                 col_max = st.session_state.current_df[col].max()
                 col_mean = st.session_state.current_df[col].mean()
                 input_data[col] = current_col.number_input(
-                    f"{col}", 
-                    float(col_min), 
-                    float(col_max), 
-                    float(col_mean),
-                    key=f"input_{col}"
+                    f"{col}", float(col_min), float(col_max), float(col_mean), key=f"input_{col}"
                 )
 
         if st.button("Predict Severity", key="predict_button"):
@@ -518,21 +425,19 @@ def render_prediction():
                     st.subheader("Prediction Results")
                     res_col1, res_col2 = st.columns(2)
 
-                    with res_col1:
-                        st.markdown(f"""
-                        <div class="card">
-                            <div class="card-title">Predicted Severity</div>
-                            <h2 style="color: #4A8DF8;">{severity_label}</h2>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    res_col1.markdown(f"""
+                    <div class="card">
+                        <div class="card-title">Predicted Severity</div>
+                        <h2 style="color: #4A8DF8;">{severity_label}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-                    with res_col2:
-                        st.markdown(f"""
-                        <div class="card">
-                            <div class="card-title">Confidence Level</div>
-                            <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    res_col2.markdown(f"""
+                    <div class="card">
+                        <div class="card-title">Confidence Level</div>
+                        <h2 style="color: #4A8DF8;">{confidence:.2f}%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                     if st.session_state.target_col in st.session_state.label_encoders:
                         st.subheader("Probability Distribution")
@@ -542,8 +447,7 @@ def render_prediction():
                         })
 
                         fig, ax = plt.subplots(figsize=(10, 4))
-                        sns.barplot(x='Severity Level', y='Probability', data=prob_df, 
-                                    ax=ax, palette="coolwarm")
+                        sns.barplot(x='Severity Level', y='Probability', data=prob_df, ax=ax, palette="coolwarm")
                         ax.set_title('Severity Probability Distribution', color='white')
                         ax.set_xlabel('Severity Level', color='white')
                         ax.set_ylabel('Probability (%)', color='white')
@@ -662,7 +566,6 @@ def render_help():
 
 def render_admin():
     st.title("Administration Dashboard")
-
     password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
 
     if password != "admin1":
@@ -718,35 +621,33 @@ def render_admin():
         st.subheader("System Information")
         info_col1, info_col2 = st.columns(2)
 
-        with info_col1:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Current Target Variable</div>
-                <h3>{st.session_state.target_col}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Features</div>
-                <h3>{len(st.session_state.X.columns) if st.session_state.X is not None else 0}</h3>
-            </div>
-            """, unsafe_allow_html=True)
+        info_col1.markdown(f"""
+        <div class="card">
+            <div class="card-title">Current Target Variable</div>
+            <h3>{st.session_state.target_col}</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        info_col1.markdown(f"""
+        <div class="card">
+            <div class="card-title">Number of Features</div>
+            <h3>{len(st.session_state.X.columns) if st.session_state.X is not None else 0}</h3>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with info_col2:
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Number of Models</div>
-                <h3>{len(st.session_state.models)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-            <div class="card">
-                <div class="card-title">Dataset Rows</div>
-                <h3>{len(st.session_state.current_df)}</h3>
-            </div>
-            """, unsafe_allow_html=True)
+        info_col2.markdown(f"""
+        <div class="card">
+            <div class="card-title">Number of Models</div>
+            <h3>{len(st.session_state.models)}</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        info_col2.markdown(f"""
+        <div class="card">
+            <div class="card-title">Dataset Rows</div>
+            <h3>{len(st.session_state.current_df)}</h3>
+        </div>
+        """, unsafe_allow_html=True)
     
     with st.expander("System Maintenance"):
         st.markdown("""
@@ -759,26 +660,10 @@ def render_admin():
         if st.button("Reset to Default Dataset", key="reset_system"):
             with st.spinner("Resetting to default dataset..."):
                 try:
-                    # Load default data
-                    default_data = load_default_data()
-                    if len(default_data) == 3:
-                        df, label_encoders, target_col = default_data
-                    else:
-                        st.error("Unexpected data format from load_default_data")
-                        return
-                    
-                    # Prepare model data
-                    model_data = prepare_model_data(df, target_col)
-                    if len(model_data) == 6:
-                        X, y, X_train, X_test, y_train, y_test = model_data
-                    else:
-                        st.error("Unexpected data format from prepare_model_data")
-                        return
-                    
-                    # Train models
+                    df, label_encoders, target_col = load_default_data()
+                    X, y, X_train, X_test, y_train, y_test = prepare_model_data(df, target_col)
                     models, scores_df = train_models(X_train, y_train, X_test, y_test)
                     
-                    # Update session state
                     st.session_state.current_df = df
                     st.session_state.label_encoders = label_encoders
                     st.session_state.models = models
