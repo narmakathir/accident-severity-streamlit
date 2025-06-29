@@ -1,16 +1,3 @@
-# requirements.txt
-streamlit==1.22.0
-pandas==1.5.0
-numpy==1.23.0
-scikit-learn==1.2.2
-imbalanced-learn==0.10.1
-xgboost==1.7.0
-seaborn==0.12.0
-matplotlib==3.6.0
-folium==0.14.0
-streamlit-folium==0.11.0
-
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
